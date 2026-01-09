@@ -332,8 +332,8 @@ function GuestView({ userId }) {
       }));
       // Client-side sort to avoid composite index requirement
       songs.sort((a, b) => {
-        const ta = a.addedAt?.seconds || 0;
-        const tb = b.addedAt?.seconds || 0;
+        const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
+        const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
         return ta - tb;
       });
       setQueue(songs);
@@ -607,6 +607,7 @@ function GuestView({ userId }) {
 // ============================================================================
 function HostView() {
   const [queue, setQueue] = useState([]);
+  const queueRef = useRef([]); // Ref for accessing latest queue in callbacks
   const [currentSong, setCurrentSong] = useState(null);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -789,8 +790,9 @@ function HostView() {
       const currentRef = doc(db, 'queue', currentSong.id);
       batch.update(currentRef, { status: 'played' });
 
-      // Find next song (first pending)
-      const nextSong = queue.filter(s => s.status === 'pending')[0];
+      // Find next song (first pending) from REF to ensure fresh state
+      const nextSong = queueRef.current.filter(s => s.status === 'pending')[0];
+      console.log('HandleSongEnded: Next song determined:', nextSong?.title);
 
       if (nextSong) {
         const nextRef = doc(db, 'queue', nextSong.id);
@@ -882,10 +884,26 @@ function HostView() {
     }
 
     if (isInitialLoad.current) {
+      // Check for saved progress
+      let startSeconds = 0;
+      try {
+        const saved = localStorage.getItem('party_playlist_progress');
+        if (saved) {
+          const { videoId, timestamp, savedAt } = JSON.parse(saved);
+          // Valid if same video and saved recently (e.g. within 24h)
+          if (videoId === currentSong.videoId && (Date.now() - savedAt < 24 * 60 * 60 * 1000)) {
+            startSeconds = timestamp;
+            console.log(`Restoring playback at ${timestamp}s`);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load saved progress', e);
+      }
+
       if (playerRef.current.cueVideoById) {
         playerRef.current.cueVideoById({
           videoId: currentSong.videoId,
-          startSeconds: 0,
+          startSeconds: startSeconds,
           suggestedQuality: 'default'
         });
       }
@@ -916,12 +934,13 @@ function HostView() {
 
       // Client-side sort
       songs.sort((a, b) => {
-        const ta = a.addedAt?.seconds || 0;
-        const tb = b.addedAt?.seconds || 0;
+        const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
+        const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
         return ta - tb;
       });
 
       setQueue(songs);
+      queueRef.current = songs; // Keep ref in sync
 
       // Find currently playing song
       const playing = songs.find((s) => s.status === 'playing');
@@ -961,6 +980,15 @@ function HostView() {
           if (total > 0) {
             setProgress(current);
             setDuration(total);
+
+            // Save progress locally (lite persistence)
+            if (currentSong) {
+              localStorage.setItem('party_playlist_progress', JSON.stringify({
+                videoId: currentSong.videoId,
+                timestamp: current,
+                savedAt: Date.now()
+              }));
+            }
 
             // Proactive transition: If less than 2 seconds remain, trigger next song
             if (total - current < 2 && !transitionTriggeredRef.current && isPlaying) {
