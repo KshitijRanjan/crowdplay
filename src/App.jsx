@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import {
@@ -612,12 +612,15 @@ function HostView() {
   const [duration, setDuration] = useState(0);
   const playerRef = useRef(null);
   const playerContainerRef = useRef(null);
-  const [playerReady, setPlayerReady] = useState(false);
+  const [playerReady, setPlayerReady] = useState(false); // API Ready
+  const [playerInstanceReady, setPlayerInstanceReady] = useState(false); // Instance Ready
   const [playlistId, setPlaylistId] = useState('');
   const [seedingPlaylist, setSeedingPlaylist] = useState(false);
   const [toast, setToast] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+
+  const isInitialLoad = useRef(true);
 
   const transitionTriggeredRef = useRef(false);
 
@@ -832,7 +835,7 @@ function HostView() {
       height: '1',
       width: '1',
       playerVars: {
-        autoplay: 1,
+        autoplay: 0,
         controls: 0,
         disablekb: 1,
         fs: 0,
@@ -846,34 +849,57 @@ function HostView() {
             onStateChangeRef.current(event);
           }
         },
-        onReady: () => console.log('YouTube Player Ready'),
+        onReady: () => {
+          console.log('YouTube Player Ready');
+          setPlayerInstanceReady(true);
+        },
       },
     });
+    // Cleanup function to destroy player and clear ref
+    return () => {
+      if (playerRef.current && playerRef.current.destroy) {
+        playerRef.current.destroy();
+      }
+      playerRef.current = null;
+      setPlayerInstanceReady(false);
+    };
   }, [playerReady]);
 
   // Sync Player with Current Song
   useEffect(() => {
-    if (!playerReady || !playerRef.current || !currentSong) return;
+    if (!playerInstanceReady || !playerRef.current || !currentSong) return;
 
     // Check if player is already playing this video
-    const playerVideoData = playerRef.current.getVideoData();
-    if (playerVideoData && playerVideoData.video_id === currentSong.videoId) {
-      if (playerRef.current.getPlayerState() !== 1) { // 1 = Playing
-        playerRef.current.playVideo();
+    if (playerRef.current.getVideoData) {
+      const playerVideoData = playerRef.current.getVideoData();
+      if (playerVideoData && playerVideoData.video_id === currentSong.videoId) {
+        // Force play if we are in this state to be sure
+        if (playerRef.current.getPlayerState && playerRef.current.getPlayerState() !== 1) { // 1 = Playing
+          playerRef.current.playVideo();
+        }
+        return;
       }
-      return;
     }
 
-    if (playerRef.current.loadVideoById) {
-      playerRef.current.loadVideoById({
-        videoId: currentSong.videoId,
-        startSeconds: 0,
-        suggestedQuality: 'default'
-      });
-      // Optionally explicit play, though loadVideoById typically plays
-      // playerRef.current.playVideo();
+    if (isInitialLoad.current) {
+      if (playerRef.current.cueVideoById) {
+        playerRef.current.cueVideoById({
+          videoId: currentSong.videoId,
+          startSeconds: 0,
+          suggestedQuality: 'default'
+        });
+      }
+      isInitialLoad.current = false;
+    } else {
+      if (playerRef.current.loadVideoById) {
+        playerRef.current.loadVideoById({
+          videoId: currentSong.videoId,
+          startSeconds: 0,
+          suggestedQuality: 'default'
+        });
+      }
     }
-  }, [currentSong, playerReady]);
+  }, [currentSong, playerInstanceReady]);
 
   // Listen to queue
   useEffect(() => {
@@ -993,6 +1019,15 @@ function HostView() {
 
   // Previous song
   const handlePrevious = async () => {
+    // Smart Previous: Restart if > 10s
+    if (playerRef.current && playerRef.current.getCurrentTime) {
+      const currentTime = playerRef.current.getCurrentTime();
+      if (currentTime > 10) {
+        playerRef.current.seekTo(0);
+        return;
+      }
+    }
+
     const playedSongs = queue.filter(s => s.status === 'played');
     if (playedSongs.length === 0) return;
 
