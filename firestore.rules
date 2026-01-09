@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Allow read/write to the 'queue' collection ONLY if the user is authenticated.
+    // In your app, 'authenticated' means they have entered a valid PIN (Host/Guest).
+    match /queue/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Explicitly deny access to everything else by default.
+    // This prevents accidental exposure if you add new collections later without rules.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
