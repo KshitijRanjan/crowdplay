@@ -851,6 +851,30 @@ function HostView() {
     });
   }, [playerReady]);
 
+  // Sync Player with Current Song
+  useEffect(() => {
+    if (!playerReady || !playerRef.current || !currentSong) return;
+
+    // Check if player is already playing this video
+    const playerVideoData = playerRef.current.getVideoData();
+    if (playerVideoData && playerVideoData.video_id === currentSong.videoId) {
+      if (playerRef.current.getPlayerState() !== 1) { // 1 = Playing
+        playerRef.current.playVideo();
+      }
+      return;
+    }
+
+    if (playerRef.current.loadVideoById) {
+      playerRef.current.loadVideoById({
+        videoId: currentSong.videoId,
+        startSeconds: 0,
+        suggestedQuality: 'default'
+      });
+      // Optionally explicit play, though loadVideoById typically plays
+      // playerRef.current.playVideo();
+    }
+  }, [currentSong, playerReady]);
+
   // Listen to queue
   useEffect(() => {
     const q = query(
@@ -880,14 +904,6 @@ function HostView() {
         // If we have a playing song and it's different from current, load it
         if (!currentSong || currentSong.id !== playing.id) {
           setCurrentSong(playing);
-          if (playerRef.current && playerRef.current.loadVideoById) {
-            playerRef.current.loadVideoById({
-              videoId: playing.videoId,
-              startSeconds: 0,
-              suggestedQuality: 'default'
-            });
-            playerRef.current.playVideo();
-          }
         }
       } else {
         // No song playing, start the first pending one
