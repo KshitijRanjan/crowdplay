@@ -8,7 +8,7 @@ import {
   addDoc,
   query,
   where,
-  orderBy,
+
   onSnapshot,
   updateDoc,
   doc,
@@ -144,7 +144,7 @@ function PinGate({ onSuccess }) {
         await signInAnonymously(auth);
         sessionStorage.setItem('pinVerified', 'true');
         onSuccess(pin === HOST_PIN ? 'host' : 'guest');
-      } catch (err) {
+      } catch (_) {
         setError('Authentication failed. Please try again.');
       }
     } else {
@@ -237,29 +237,6 @@ function QueueSidebar({
           </button>
         </div>
 
-        {/* History Section */}
-        {playedHistory.length > 0 && (
-          <div className="mb-8 opacity-60 hover:opacity-100 transition-opacity">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-              History
-            </h3>
-            <div className="space-y-3">
-              {playedHistory.slice().reverse().map((song) => (
-                <div key={song.id} className="flex items-center gap-3 bg-slate-800/40 rounded-xl p-2 grayscale">
-                  <img
-                    src={song.thumbnailUrl}
-                    alt={song.title}
-                    className="w-10 h-10 rounded-lg object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-slate-400 text-sm font-medium truncate">{song.title}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="space-y-3">
           {upNext.length === 0 ? (
             <p className="text-slate-500 text-sm italic">Queue is empty...</p>
@@ -302,6 +279,29 @@ function QueueSidebar({
             ))
           )}
         </div>
+
+        {/* History Section */}
+        {playedHistory.length > 0 && (
+          <div className="mt-8 pt-6 border-t border-slate-700/50 opacity-60 hover:opacity-100 transition-opacity">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
+              History
+            </h3>
+            <div className="space-y-3">
+              {playedHistory.slice().reverse().map((song) => (
+                <div key={song.id} className="flex items-center gap-3 bg-slate-800/40 rounded-xl p-2 grayscale">
+                  <img
+                    src={song.thumbnailUrl}
+                    alt={song.title}
+                    className="w-10 h-10 rounded-lg object-cover"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-400 text-sm font-medium truncate">{song.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </aside>
     </>
   );
@@ -582,6 +582,14 @@ function GuestView({ userId }) {
         )}
       </main>
 
+      {/* Up Next Sidebar */}
+      <QueueSidebar
+        showSidebar={showSidebar}
+        setShowSidebar={setShowSidebar}
+        queue={queue}
+        isHost={false}
+      />
+
       {/* Toast */}
       {toast && (
         <Toast
@@ -770,6 +778,52 @@ function HostView() {
     };
   }, []);
 
+  // Handle song ended
+  const handleSongEnded = async () => {
+    if (currentSong) {
+      // Atomic update: Mark current as played AND next as playing
+      const batch = writeBatch(db);
+      const currentRef = doc(db, 'queue', currentSong.id);
+      batch.update(currentRef, { status: 'played' });
+
+      // Find next song (first pending)
+      const nextSong = queue.filter(s => s.status === 'pending')[0];
+
+      if (nextSong) {
+        const nextRef = doc(db, 'queue', nextSong.id);
+        batch.update(nextRef, { status: 'playing' });
+      } else {
+        setCurrentSong(null);
+      }
+
+      await batch.commit();
+
+      // Reset local player state if no next song
+      if (!nextSong) {
+        setProgress(0);
+        setDuration(0);
+      }
+    }
+  };
+
+  // Ref to hold the latest version of the handler to avoid stale closures in YouTube API
+  const onStateChangeRef = useRef(null);
+
+  // Handle player state changes
+  const handlePlayerStateChange = useCallback((event) => {
+    // YT.PlayerState.ENDED = 0
+    if (event.data === 0) {
+      handleSongEnded();
+    }
+    // YT.PlayerState.PLAYING = 1
+    setIsPlaying(event.data === 1);
+  }, [queue, currentSong, handleSongEnded]); // Properly include dependencies
+
+  // Update ref on every render so the player always calls the latest version
+  useEffect(() => {
+    onStateChangeRef.current = handlePlayerStateChange;
+  }, [handlePlayerStateChange]);
+
   // Initialize player when ready
   useEffect(() => {
     if (!playerReady || playerRef.current) return;
@@ -786,21 +840,16 @@ function HostView() {
         rel: 0,
       },
       events: {
-        onStateChange: handlePlayerStateChange,
+        // Delegate to the ref to key access to fresh state
+        onStateChange: (event) => {
+          if (onStateChangeRef.current) {
+            onStateChangeRef.current(event);
+          }
+        },
         onReady: () => console.log('YouTube Player Ready'),
       },
     });
   }, [playerReady]);
-
-  // Handle player state changes
-  const handlePlayerStateChange = useCallback((event) => {
-    // YT.PlayerState.ENDED = 0
-    if (event.data === 0) {
-      handleSongEnded();
-    }
-    // YT.PlayerState.PLAYING = 1
-    setIsPlaying(event.data === 1);
-  }, [queue, currentSong]); // Added dependencies for clarity, though useCallback usually empty here if using refs or internal logic
 
   // Listen to queue
   useEffect(() => {
@@ -878,7 +927,7 @@ function HostView() {
               handleSongEnded();
             }
           }
-        } catch (e) {
+        } catch (_) {
           // Player not ready
         }
       }
@@ -897,32 +946,7 @@ function HostView() {
   };
 
   // Handle song ended
-  const handleSongEnded = async () => {
-    if (currentSong) {
-      // Atomic update: Mark current as played AND next as playing
-      const batch = writeBatch(db);
-      const currentRef = doc(db, 'queue', currentSong.id);
-      batch.update(currentRef, { status: 'played' });
 
-      // Find next song (first pending)
-      const nextSong = queue.filter(s => s.status === 'pending')[0];
-
-      if (nextSong) {
-        const nextRef = doc(db, 'queue', nextSong.id);
-        batch.update(nextRef, { status: 'playing' });
-      } else {
-        setCurrentSong(null);
-      }
-
-      await batch.commit();
-
-      // Reset local player state if no next song
-      if (!nextSong) {
-        setProgress(0);
-        setDuration(0);
-      }
-    }
-  };
 
   // Skip song
   const handleSkip = async () => {
@@ -1020,9 +1044,6 @@ function HostView() {
     }
   };
 
-  const playedHistory = queue.filter(s => s.status === 'played');
-
-  const upNext = queue.filter((s) => s.status === 'pending');
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
 
   return (
@@ -1209,7 +1230,6 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const location = useLocation();
   const navigate = useNavigate();
 
   // Check for existing session
