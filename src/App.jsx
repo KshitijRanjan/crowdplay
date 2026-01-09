@@ -200,6 +200,114 @@ function PinGate({ onSuccess }) {
 }
 
 // ============================================================================
+// QUEUE SIDEBAR COMPONENT
+// ============================================================================
+function QueueSidebar({
+  showSidebar,
+  setShowSidebar,
+  queue,
+  handlePlayNext,
+  handleDeleteSong,
+  isHost
+}) {
+  const upNext = queue.filter((s) => s.status === 'pending');
+  const playedHistory = queue.filter(s => s.status === 'played');
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${showSidebar ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        onClick={() => setShowSidebar(false)}
+      />
+      <aside
+        className={`fixed right-0 bg-slate-900/95 backdrop-blur-lg border-l border-slate-700/50 p-6 overflow-y-auto z-50 transform transition-transform duration-300 top-0 bottom-0 w-80 ${showSidebar ? 'translate-x-0' : 'translate-x-full'
+          }`}
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <SkipForward className="w-5 h-5 text-purple-400" />
+            Up Next ({upNext.length})
+          </h3>
+          <button
+            onClick={() => setShowSidebar(false)}
+            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        {/* History Section */}
+        {playedHistory.length > 0 && (
+          <div className="mb-8 opacity-60 hover:opacity-100 transition-opacity">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
+              History
+            </h3>
+            <div className="space-y-3">
+              {playedHistory.slice().reverse().map((song) => (
+                <div key={song.id} className="flex items-center gap-3 bg-slate-800/40 rounded-xl p-2 grayscale">
+                  <img
+                    src={song.thumbnailUrl}
+                    alt={song.title}
+                    className="w-10 h-10 rounded-lg object-cover"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-400 text-sm font-medium truncate">{song.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {upNext.length === 0 ? (
+            <p className="text-slate-500 text-sm italic">Queue is empty...</p>
+          ) : (
+            upNext.map((song, index) => (
+              <div key={song.id} className="flex items-center gap-3 bg-slate-800/60 rounded-xl p-2 group">
+                <span className="w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center text-xs text-slate-400 font-bold flex-shrink-0">
+                  {index + 1}
+                </span>
+                <img
+                  src={song.thumbnailUrl}
+                  alt={song.title}
+                  className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{song.title}</p>
+                  <p className="text-slate-400 text-xs truncate">{song.channelTitle}</p>
+                </div>
+
+                {/* Actions - Only if Host */}
+                {isHost && (
+                  <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handlePlayNext(song)}
+                      className="p-1.5 hover:bg-slate-700 rounded-full text-blue-400 hover:text-blue-300 transition-colors"
+                      title="Play Next"
+                    >
+                      <ArrowUpCircle className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSong(song.id)}
+                      className="p-1.5 hover:bg-slate-700 rounded-full text-slate-500 hover:text-red-400 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ============================================================================
 // GUEST VIEW COMPONENT
 // ============================================================================
 function GuestView({ userId }) {
@@ -208,6 +316,7 @@ function GuestView({ userId }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [queue, setQueue] = useState([]);
+  const [showSidebar, setShowSidebar] = useState(false);
 
   // Listen to queue for display
   useEffect(() => {
@@ -338,7 +447,13 @@ function GuestView({ userId }) {
           </div>
           <div className="flex items-center gap-2 text-slate-400 text-sm">
             <Users className="w-4 h-4" />
-            <span>{queue.length} in queue</span>
+            <span className="hidden sm:inline">{queue.length} in queue</span>
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              className="p-2 ml-2 hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <Menu className="w-5 h-5 text-white" />
+            </button>
           </div>
         </div>
       </header>
@@ -1066,94 +1181,14 @@ function HostView() {
       </main>
 
       {/* Up Next Sidebar */}
-      <div
-        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${showSidebar ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-        onClick={() => setShowSidebar(false)}
+      <QueueSidebar
+        showSidebar={showSidebar}
+        setShowSidebar={setShowSidebar}
+        queue={queue}
+        handlePlayNext={handlePlayNext}
+        handleDeleteSong={handleDeleteSong}
+        isHost={true}
       />
-      <aside
-        className={`fixed right-0 top-0 bottom-0 w-80 bg-slate-900/95 backdrop-blur-lg border-l border-slate-700/50 p-6 overflow-y-auto z-50 transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : 'translate-x-full'
-          }`}
-      >
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <SkipForward className="w-5 h-5 text-purple-400" />
-            Up Next ({upNext.length})
-          </h3>
-          <button
-            onClick={() => setShowSidebar(false)}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-slate-400" />
-          </button>
-        </div>
-
-        {/* History Section */}
-        {playedHistory.length > 0 && (
-          <div className="mb-8 opacity-60 hover:opacity-100 transition-opacity">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-              History
-            </h3>
-            <div className="space-y-3">
-              {playedHistory.slice().reverse().map((song) => (
-                <div key={song.id} className="flex items-center gap-3 bg-slate-800/40 rounded-xl p-2 grayscale">
-                  <img
-                    src={song.thumbnailUrl}
-                    alt={song.title}
-                    className="w-10 h-10 rounded-lg object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-slate-400 text-sm font-medium truncate">{song.title}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-
-        {/* Previously "Up Next" title was here, moved up for better layout in sidebar */}
-        <div className="space-y-3">
-          {upNext.length === 0 ? (
-            <p className="text-slate-500 text-sm italic">Queue is empty...</p>
-          ) : (
-            upNext.map((song, index) => (
-              <div key={song.id} className="flex items-center gap-3 bg-slate-800/60 rounded-xl p-2 group">
-                <span className="w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center text-xs text-slate-400 font-bold flex-shrink-0">
-                  {index + 1}
-                </span>
-                <img
-                  src={song.thumbnailUrl}
-                  alt={song.title}
-                  className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{song.title}</p>
-                  <p className="text-slate-400 text-xs truncate">{song.channelTitle}</p>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handlePlayNext(song)}
-                    className="p-1.5 hover:bg-slate-700 rounded-full text-blue-400 hover:text-blue-300 transition-colors"
-                    title="Play Next"
-                  >
-                    <ArrowUpCircle className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSong(song.id)}
-                    className="p-1.5 hover:bg-slate-700 rounded-full text-slate-500 hover:text-red-400 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </aside>
 
       {/* Toast */}
       {toast && (
