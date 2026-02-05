@@ -17,6 +17,8 @@ import {
   getDocs,
   writeBatch,
   Timestamp,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import {
   Search,
@@ -208,7 +210,9 @@ function QueueSidebar({
   queue,
   handlePlayNext,
   handleDeleteSong,
-  isHost
+  isHost,
+  userId,
+  handleUpvote
 }) {
   const upNext = queue.filter((s) => s.status === 'pending');
   const playedHistory = queue.filter(s => s.status === 'played');
@@ -257,11 +261,11 @@ function QueueSidebar({
                 </div>
 
                 {/* Actions - Only if Host */}
-                {isHost && (
+                {isHost ? (
                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handlePlayNext(song)}
-                      className="p-1.5 hover:bg-slate-700 rounded-full text-blue-400 hover:text-blue-300 transition-colors"
+                      className={`p-1.5 hover:bg-slate-700 rounded-full transition-colors ${song.isPriority ? 'text-green-400' : 'text-blue-400 hover:text-blue-300'}`}
                       title="Play Next"
                     >
                       <ArrowUpCircle className="w-4 h-4" />
@@ -272,6 +276,20 @@ function QueueSidebar({
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  /* Guest Voting */
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleUpvote(song)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId)
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white'
+                        }`}
+                    >
+                      <ArrowUpCircle className="w-4 h-4" />
+                      <span className="text-xs font-bold">{song.upvotes?.length || 0}</span>
                     </button>
                   </div>
                 )}
@@ -330,8 +348,18 @@ function GuestView({ userId }) {
         id: doc.id,
         ...doc.data(),
       }));
-      // Client-side sort to avoid composite index requirement
+      // Client-side sort: Priority -> Upvotes -> Time Added
       songs.sort((a, b) => {
+        // 1. Priority (Host override)
+        if (a.isPriority && !b.isPriority) return -1;
+        if (!a.isPriority && b.isPriority) return 1;
+
+        // 2. Upvotes (High to Low)
+        const votesA = a.upvotes?.length || 0;
+        const votesB = b.upvotes?.length || 0;
+        if (votesA !== votesB) return votesB - votesA;
+
+        // 3. Time Added (First in, First out)
         const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
         const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
         return ta - tb;
@@ -428,6 +456,26 @@ function GuestView({ userId }) {
     } catch (err) {
       console.error('Add song error:', err);
       setToast({ message: 'Failed to add song.', type: 'error' });
+    }
+  };
+
+  const handleUpvote = async (song) => {
+    try {
+      const songRef = doc(db, 'queue', song.id);
+      const isVoted = song.upvotes?.includes(userId);
+
+      if (isVoted) {
+        await updateDoc(songRef, {
+          upvotes: arrayRemove(userId)
+        });
+      } else {
+        await updateDoc(songRef, {
+          upvotes: arrayUnion(userId)
+        });
+      }
+    } catch (err) {
+      console.error('Upvote error:', err);
+      setToast({ message: 'Failed to update vote', type: 'error' });
     }
   };
 
@@ -588,6 +636,8 @@ function GuestView({ userId }) {
         setShowSidebar={setShowSidebar}
         queue={queue}
         isHost={false}
+        userId={userId}
+        handleUpvote={handleUpvote}
       />
 
       {/* Toast */}
@@ -932,8 +982,18 @@ function HostView() {
         ...doc.data(),
       }));
 
-      // Client-side sort
+      // Client-side sort: Priority -> Upvotes -> Time Added
       songs.sort((a, b) => {
+        // 1. Priority (Host override)
+        if (a.isPriority && !b.isPriority) return -1;
+        if (!a.isPriority && b.isPriority) return 1;
+
+        // 2. Upvotes (High to Low)
+        const votesA = a.upvotes?.length || 0;
+        const votesB = b.upvotes?.length || 0;
+        if (votesA !== votesB) return votesB - votesA;
+
+        // 3. Time Added (First in, First out)
         const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
         const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
         return ta - tb;
@@ -1102,7 +1162,8 @@ function HostView() {
       }
 
       await updateDoc(doc(db, 'queue', song.id), {
-        addedAt: newTime
+        isPriority: true,
+        addedAt: newTime // Keep this to ensure "Play Next" items sort amongst themselves by time if needed
       });
 
       setToast({ message: 'Song moved to top of queue!', type: 'success' });
