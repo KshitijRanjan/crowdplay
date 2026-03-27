@@ -2,15 +2,61 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Allow read/write to the 'queue' collection ONLY if the user is authenticated.
-    // In your app, 'authenticated' means they have entered a valid PIN (Host/Guest).
-    match /queue/{document=**} {
-      allow read, write: if request.auth != null;
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
     }
-    
-    // Explicitly deny access to everything else by default.
-    // This prevents accidental exposure if you add new collections later without rules.
+
+    function userRole() {
+      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role;
+    }
+
+    function isHost() {
+      return isAuthenticated() && userRole() == 'host';
+    }
+
+    // An update is "only upvoting" if the only field changed is `upvotes`
+    function onlyUpvoting() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']);
+    }
+
+    // ── Roles collection ──────────────────────────────────────────────────────
+    // Each user writes their own role document once on sign-in.
+    // Updates and deletes are blocked — role cannot be escalated after creation.
+    match /roles/{uid} {
+      allow read: if isAuthenticated() && request.auth.uid == uid;
+
+      allow create: if isAuthenticated()
+                    && request.auth.uid == uid
+                    && request.resource.data.keys().hasOnly(['role'])
+                    && request.resource.data.role in ['host', 'guest'];
+
+      allow update, delete: if false;
+    }
+
+    // ── Queue collection ──────────────────────────────────────────────────────
+    match /queue/{songId} {
+      // Any authenticated user (guest or host) can read the queue
+      allow read: if isAuthenticated();
+
+      // Any authenticated user can add a song — enforce required fields and
+      // that status starts as 'pending' to prevent queue manipulation on create
+      allow create: if isAuthenticated()
+                    && request.resource.data.keys().hasAll(['videoId', 'title', 'addedBy', 'addedAt', 'status'])
+                    && request.resource.data.videoId is string
+                    && request.resource.data.title is string
+                    && request.resource.data.status == 'pending';
+
+      // Only hosts can delete songs
+      allow delete: if isHost();
+
+      // Guests may only toggle their upvote; hosts may update any field
+      allow update: if isHost() || (isAuthenticated() && onlyUpvoting());
+    }
+
+    // ── Deny everything else by default ───────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }
