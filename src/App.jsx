@@ -8,10 +8,10 @@ import {
   addDoc,
   query,
   where,
-
   onSnapshot,
   updateDoc,
   doc,
+  setDoc,
   serverTimestamp,
   deleteDoc,
   getDocs,
@@ -60,9 +60,9 @@ const db = getFirestore(app);
 // YouTube API Key
 const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
 
-// Hardcoded PINs
-const HOST_PIN = '2508';
-const GUEST_PIN = '2502';
+// PINs loaded from environment variables (never hardcoded in source)
+const HOST_PIN = import.meta.env.VITE_HOST_PIN;
+const GUEST_PIN = import.meta.env.VITE_GUEST_PIN;
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -143,9 +143,13 @@ function PinGate({ onSuccess }) {
 
     if (pin === HOST_PIN || pin === GUEST_PIN) {
       try {
+        const role = pin === HOST_PIN ? 'host' : 'guest';
         await signInAnonymously(auth);
+        // Write role to Firestore so security rules can enforce it
+        await setDoc(doc(db, 'roles', auth.currentUser.uid), { role });
         sessionStorage.setItem('pinVerified', 'true');
-        onSuccess(pin === HOST_PIN ? 'host' : 'guest');
+        sessionStorage.setItem('userRole', role);
+        onSuccess(role);
       } catch (_) {
         setError('Authentication failed. Please try again.');
       }
@@ -680,34 +684,28 @@ function HostView() {
     transitionTriggeredRef.current = false;
   }, [currentSong]);
 
-  // Clear Playlist with PIN
+  // Clear Playlist (host only — enforced by Firestore rules)
   const handleClearPlaylist = async () => {
-    const pin = window.prompt('Enter PIN to clear playlist:');
-    if (pin === '2508') {
-      if (!window.confirm('Are you sure you want to clear the entire playlist?')) return;
+    if (!window.confirm('Are you sure you want to clear the entire playlist?')) return;
 
-      try {
-        const q = query(collection(db, 'queue'));
-        const snapshot = await getDocs(q);
+    try {
+      const q = query(collection(db, 'queue'));
+      const snapshot = await getDocs(q);
 
-        const deletions = snapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deletions);
+      const deletions = snapshot.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(deletions);
 
-        setToast({ message: 'Playlist cleared!', type: 'success' });
-        // Stop player
-        if (playerRef.current && playerRef.current.stopVideo) {
-          playerRef.current.stopVideo();
-        }
-        setCurrentSong(null);
-        setProgress(0);
-        setDuration(0);
-        setIsPlaying(false);
-      } catch (err) {
-        console.error('Clear playlist error:', err);
-        setToast({ message: 'Failed to clear playlist.', type: 'error' });
+      setToast({ message: 'Playlist cleared!', type: 'success' });
+      if (playerRef.current && playerRef.current.stopVideo) {
+        playerRef.current.stopVideo();
       }
-    } else if (pin !== null) {
-      alert('Incorrect PIN');
+      setCurrentSong(null);
+      setProgress(0);
+      setDuration(0);
+      setIsPlaying(false);
+    } catch (err) {
+      console.error('Clear playlist error:', err);
+      setToast({ message: 'Failed to clear playlist.', type: 'error' });
     }
   };
 
