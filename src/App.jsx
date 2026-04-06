@@ -877,6 +877,77 @@ function HostView() {
     onStateChangeRef.current = handlePlayerStateChange;
   }, [handlePlayerStateChange]);
 
+  // Screen Wake Lock: keep screen on while music is playing so phone lock doesn't kill audio
+  // Works on iOS 16.4+ when installed as a PWA; on Android Chrome in regular browser too
+  useEffect(() => {
+    if (!('wakeLock' in navigator)) return;
+    let wakeLock = null;
+
+    const acquire = async () => {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+      } catch (e) {
+        // Denied (e.g. low battery mode) — fail silently
+      }
+    };
+
+    const release = () => {
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+      }
+    };
+
+    // Wake lock is auto-released when tab becomes hidden; re-acquire when visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isPlaying) {
+        acquire();
+      }
+    };
+
+    if (isPlaying) {
+      acquire();
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    } else {
+      release();
+    }
+
+    return () => {
+      release();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isPlaying]);
+
+  // MediaSession API: register track metadata + controls with the OS lock screen
+  // Enables lock screen controls on Android Chrome and iOS PWA
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentSong) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentSong.title,
+      artist: currentSong.channelTitle || 'Party Playlist',
+      artwork: currentSong.thumbnailUrl
+        ? [{ src: currentSong.thumbnailUrl, sizes: '480x360', type: 'image/jpeg' }]
+        : [],
+    });
+
+    navigator.mediaSession.setActionHandler('play', () => {
+      playerRef.current?.playVideo();
+    });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      playerRef.current?.pauseVideo();
+    });
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      handleSongEnded();
+    });
+
+    return () => {
+      navigator.mediaSession.setActionHandler('play', null);
+      navigator.mediaSession.setActionHandler('pause', null);
+      navigator.mediaSession.setActionHandler('nexttrack', null);
+    };
+  }, [currentSong, handleSongEnded]);
+
   // Initialize player when ready
   useEffect(() => {
     if (!playerReady || playerRef.current) return;
