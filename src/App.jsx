@@ -11,6 +11,7 @@ import {
   onSnapshot,
   updateDoc,
   doc,
+  getDoc,
   setDoc,
   serverTimestamp,
   deleteDoc,
@@ -145,8 +146,17 @@ function PinGate({ onSuccess }) {
       try {
         const role = pin === HOST_PIN ? 'host' : 'guest';
         await signInAnonymously(auth);
-        // Write role to Firestore so security rules can enforce it
-        await setDoc(doc(db, 'roles', auth.currentUser.uid), { role });
+        const uid = auth.currentUser.uid;
+        // Only write the role doc if it doesn't already exist.
+        // Firebase persists anonymous users in localStorage, so returning users
+        // (e.g. after the PWA is closed and reopened) will get the same UID back.
+        // The Firestore rule is write-once, so attempting setDoc on an existing
+        // doc would throw a permission-denied error.
+        const roleRef = doc(db, 'roles', uid);
+        const existing = await getDoc(roleRef);
+        if (!existing.exists()) {
+          await setDoc(roleRef, { role });
+        }
         sessionStorage.setItem('pinVerified', 'true');
         sessionStorage.setItem('userRole', role);
         onSuccess(role);
