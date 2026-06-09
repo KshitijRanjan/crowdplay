@@ -901,6 +901,7 @@ function QueueSidebar({
   queue,
   handlePlayNext,
   handleDeleteSong,
+  handleRestoreSong,
   isHost,
   userId,
   handleUpvote,
@@ -987,11 +988,20 @@ function QueueSidebar({
             <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">History</h3>
             <div className="space-y-3">
               {playedHistory.slice().reverse().map((song) => (
-                <div key={song.id} className="flex items-center gap-3 bg-slate-800/40 rounded-xl p-2 grayscale">
-                  <img src={song.thumbnailUrl} alt={song.title} className="w-10 h-10 rounded-lg object-cover" />
+                <div key={song.id} className="flex items-center gap-3 bg-slate-800/40 rounded-xl p-2">
+                  <img src={song.thumbnailUrl} alt={song.title} className="w-10 h-10 rounded-lg object-cover grayscale" />
                   <div className="flex-1 min-w-0">
                     <p className="text-slate-400 text-sm font-medium truncate">{song.title}</p>
                   </div>
+                  {isHost && handleRestoreSong && (
+                    <button
+                      onClick={() => handleRestoreSong(song)}
+                      className="p-1.5 hover:bg-slate-700 rounded-full text-slate-500 hover:text-green-400 transition-colors flex-shrink-0"
+                      title="Add back to queue"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -1083,7 +1093,7 @@ function GuestView({ userId, roomCode }) {
       setToast({ message: 'Slow down! Max 5 songs per minute.', type: 'error' });
       return;
     }
-    const isDuplicate = queue.some((s) => s.videoId === song.videoId);
+    const isDuplicate = queue.some((s) => s.videoId === song.videoId && s.status !== 'played');
     if (isDuplicate) {
       setToast({ message: 'Song already in the queue!', type: 'error' });
       return;
@@ -1279,6 +1289,9 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
   const [showSidebar, setShowSidebar] = useState(false);
   const [pinCopied, setPinCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const isInitialLoad = useRef(true);
   const transitionTriggeredRef = useRef(false);
@@ -1609,6 +1622,71 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
     }
   };
 
+  const handleRestoreSong = async (song) => {
+    try {
+      await updateDoc(roomDocRef(song.id), { status: 'pending', isPriority: false, addedAt: serverTimestamp() });
+      setToast({ message: 'Song added back to queue!', type: 'success' });
+    } catch (e) {
+      console.error('Restore song error:', e);
+      setToast({ message: 'Failed to restore song.', type: 'error' });
+    }
+  };
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setSearchLoading(true);
+    try {
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
+      const searchRes = await fetch(searchUrl);
+      const searchData = await searchRes.json();
+      if (!searchData.items?.length) { setSearchResults([]); setSearchLoading(false); return; }
+
+      const videoIds = searchData.items.map((item) => item.id.videoId).join(',');
+      const detailsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds}&key=${YOUTUBE_API_KEY}`);
+      const detailsData = await detailsRes.json();
+
+      setSearchResults(
+        detailsData.items
+          .filter((v) => parseDuration(v.contentDetails.duration) <= 480)
+          .map((v) => ({
+            videoId: v.id,
+            title: v.snippet.title,
+            channelTitle: v.snippet.channelTitle,
+            thumbnailUrl: v.snippet.thumbnails.medium?.url || v.snippet.thumbnails.default?.url,
+            duration: parseDuration(v.contentDetails.duration),
+          }))
+      );
+    } catch (e) {
+      console.error('Host search error:', e);
+      setToast({ message: 'Search failed.', type: 'error' });
+    }
+    setSearchLoading(false);
+  };
+
+  const handleAddSong = async (song) => {
+    const isDuplicate = queue.some((s) => s.videoId === song.videoId && s.status !== 'played');
+    if (isDuplicate) { setToast({ message: 'Song already in the queue!', type: 'error' }); return; }
+    try {
+      await addDoc(roomQueueRef(), {
+        videoId: song.videoId,
+        title: song.title,
+        thumbnailUrl: song.thumbnailUrl,
+        channelTitle: song.channelTitle,
+        addedBy: 'host',
+        addedAt: serverTimestamp(),
+        status: 'pending',
+        upvotes: [],
+        isPriority: false,
+      });
+      setToast({ message: 'Song added!', type: 'success' });
+      setSearchResults((prev) => prev.filter((s) => s.videoId !== song.videoId));
+    } catch (e) {
+      console.error('Host add song error:', e);
+      setToast({ message: 'Failed to add song.', type: 'error' });
+    }
+  };
+
   const togglePlay = () => {
     if (!playerRef.current) return;
     if (playerRef.current.getPlayerState() === 1) {
@@ -1794,6 +1872,50 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
             </p>
           </div>
         )}
+
+        {/* Host Search */}
+        <div className="w-full max-w-2xl mt-8">
+          <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search and add a song..."
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={searchLoading || !searchQuery.trim()}
+              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
+            >
+              {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              Search
+            </button>
+          </form>
+
+          {searchResults.length > 0 && (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {searchResults.map((song) => (
+                <div key={song.videoId} className="flex items-center gap-3 bg-slate-800/60 rounded-xl p-2 border border-slate-700/50">
+                  <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{song.title}</p>
+                    <p className="text-slate-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
+                  </div>
+                  <button
+                    onClick={() => handleAddSong(song)}
+                    className="flex-shrink-0 w-9 h-9 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center hover:scale-105 transition-transform"
+                  >
+                    <Plus className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
 
       <QueueSidebar
@@ -1802,6 +1924,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
         queue={queue}
         handlePlayNext={handlePlayNext}
         handleDeleteSong={handleDeleteSong}
+        handleRestoreSong={handleRestoreSong}
         isHost={true}
       />
 
