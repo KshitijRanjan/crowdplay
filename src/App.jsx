@@ -210,6 +210,9 @@ function RequestAccessForm({ onBack, onSuccess }) {
     setLoading(true);
 
     try {
+      // Auth required before any Firestore read
+      await signInAnonymously(auth);
+
       const reqRef = doc(db, 'hostRequests', email.toLowerCase());
       const existing = await getDoc(reqRef);
 
@@ -225,9 +228,6 @@ function RequestAccessForm({ onBack, onSuccess }) {
         setLoading(false);
         return;
       }
-
-      // Sign in anonymously just to satisfy Firestore auth requirement
-      await signInAnonymously(auth);
 
       await setDoc(reqRef, {
         name: name.trim(),
@@ -351,6 +351,9 @@ function HostLoginForm({ onBack, onSuccess }) {
     setLoading(true);
 
     try {
+      // Auth required before any Firestore read
+      await signInAnonymously(auth);
+
       const approvedRef = doc(db, 'approvedHosts', email.toLowerCase().trim());
       const approved = await getDoc(approvedRef);
 
@@ -373,7 +376,6 @@ function HostLoginForm({ onBack, onSuccess }) {
         return;
       }
 
-      await signInAnonymously(auth);
       const uid = auth.currentUser.uid;
 
       sessionStorage.setItem('pinVerified', 'true');
