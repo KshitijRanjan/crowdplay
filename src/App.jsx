@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import emailjs from '@emailjs/browser';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import {
@@ -19,7 +19,7 @@ import {
   writeBatch,
   Timestamp,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
 } from 'firebase/firestore';
 import {
   Search,
@@ -39,6 +39,17 @@ import {
   Menu,
   X,
   ArrowUpCircle,
+  UserPlus,
+  LogIn,
+  ChevronLeft,
+  Shield,
+  Copy,
+  Check,
+  Mail,
+  Clock,
+  Crown,
+  Hash,
+  AlertCircle,
 } from 'lucide-react';
 
 // ============================================================================
@@ -58,54 +69,62 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// YouTube API Key
 const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
-
-// PINs loaded from environment variables (never hardcoded in source)
-const HOST_PIN = import.meta.env.VITE_HOST_PIN;
-const GUEST_PIN = import.meta.env.VITE_GUEST_PIN;
+const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN;
+const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
-// Parse ISO 8601 duration to seconds
 function parseDuration(duration) {
   const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return 0;
-  const hours = parseInt(match[1] || 0);
-  const minutes = parseInt(match[2] || 0);
-  const seconds = parseInt(match[3] || 0);
-  return hours * 3600 + minutes * 60 + seconds;
+  return (parseInt(match[1] || 0) * 3600) + (parseInt(match[2] || 0) * 60) + parseInt(match[3] || 0);
 }
 
-// Format seconds to mm:ss
 function formatTime(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Rate limiting check
 function canAddSong() {
   const now = Date.now();
   const recentAdds = JSON.parse(localStorage.getItem('recentAdds') || '[]');
-  const oneMinuteAgo = now - 60000;
-  const recentInWindow = recentAdds.filter((t) => t > oneMinuteAgo);
-  return recentInWindow.length < 5;
+  return recentAdds.filter((t) => t > now - 60000).length < 5;
 }
 
 function recordSongAdd() {
   const now = Date.now();
   const recentAdds = JSON.parse(localStorage.getItem('recentAdds') || '[]');
-  const oneMinuteAgo = now - 60000;
-  const recentInWindow = recentAdds.filter((t) => t > oneMinuteAgo);
-  recentInWindow.push(now);
-  localStorage.setItem('recentAdds', JSON.stringify(recentInWindow));
+  const updated = [...recentAdds.filter((t) => t > now - 60000), now];
+  localStorage.setItem('recentAdds', JSON.stringify(updated));
+}
+
+function generateRoomCode() {
+  // Omit 0/O, 1/I/L to avoid confusion
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+function isRoomActive(roomData) {
+  if (!roomData || roomData.status !== 'active') return false;
+  const expiresAt = roomData.expiresAt?.toMillis ? roomData.expiresAt.toMillis() : 0;
+  return expiresAt > Date.now();
+}
+
+function clearSession() {
+  sessionStorage.removeItem('pinVerified');
+  sessionStorage.removeItem('userRole');
+  sessionStorage.removeItem('roomCode');
+  sessionStorage.removeItem('hostEmail');
 }
 
 // ============================================================================
-// TOAST NOTIFICATION COMPONENT
+// TOAST COMPONENT
 // ============================================================================
 function Toast({ message, type, onClose }) {
   useEffect(() => {
@@ -114,57 +133,359 @@ function Toast({ message, type, onClose }) {
   }, [onClose]);
 
   return (
-    <div
-      className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 z-50 animate-bounce ${type === 'success'
-        ? 'bg-green-500 text-white'
-        : type === 'error'
-          ? 'bg-red-500 text-white'
-          : 'bg-slate-700 text-white'
-        }`}
-    >
-      {type === 'success' && <CheckCircle className="w-5 h-5" />}
-      {type === 'error' && <XCircle className="w-5 h-5" />}
-      <span className="font-medium">{message}</span>
+    <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-medium transition-all duration-300 ${
+      type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-slate-700'
+    }`}>
+      {type === 'success' ? <CheckCircle className="w-5 h-5" /> : type === 'error' ? <XCircle className="w-5 h-5" /> : null}
+      <span>{message}</span>
     </div>
   );
 }
 
 // ============================================================================
-// PIN GATE COMPONENT
+// LANDING PAGE
 // ============================================================================
-function PinGate({ onSuccess }) {
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
+function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-12">
+          <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-purple-500/40">
+            <Music className="w-12 h-12 text-white" />
+          </div>
+          <h1 className="text-4xl font-bold text-white mb-2">Party Playlist</h1>
+          <p className="text-slate-400">Shared music for your crew</p>
+        </div>
+
+        <div className="space-y-4">
+          <button
+            onClick={onHostParty}
+            className="w-full py-5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xl rounded-2xl hover:from-purple-500 hover:to-pink-500 transition-all duration-300 shadow-lg shadow-purple-500/30 flex items-center justify-center gap-3"
+          >
+            <Crown className="w-6 h-6" />
+            Host a Party
+          </button>
+
+          <button
+            onClick={onJoinParty}
+            className="w-full py-5 bg-slate-800 border border-slate-700 text-white font-bold text-xl rounded-2xl hover:bg-slate-700 transition-all duration-300 flex items-center justify-center gap-3"
+          >
+            <Music className="w-6 h-6 text-purple-400" />
+            Join a Party
+          </button>
+        </div>
+
+        <div className="mt-8 text-center">
+          <button
+            onClick={onRequestAccess}
+            className="text-slate-500 hover:text-slate-300 text-sm transition-colors"
+          >
+            Want to host? Request access →
+          </button>
+        </div>
+
+        {/* Admin — deliberately subtle */}
+        <div className="mt-6 text-center">
+          <button onClick={onAdmin} className="text-slate-800 hover:text-slate-600 text-xs transition-colors select-none">
+            ···
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// REQUEST ACCESS FORM
+// ============================================================================
+function RequestAccessForm({ onBack, onSuccess }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    if (pin === HOST_PIN || pin === GUEST_PIN) {
-      try {
-        const role = pin === HOST_PIN ? 'host' : 'guest';
-        await signInAnonymously(auth);
-        const uid = auth.currentUser.uid;
-        // Only write the role doc if it doesn't already exist.
-        // Firebase persists anonymous users in localStorage, so returning users
-        // (e.g. after the PWA is closed and reopened) will get the same UID back.
-        // The Firestore rule is write-once, so attempting setDoc on an existing
-        // doc would throw a permission-denied error.
-        const roleRef = doc(db, 'roles', uid);
-        const existing = await getDoc(roleRef);
-        if (!existing.exists()) {
-          await setDoc(roleRef, { role });
+    try {
+      const reqRef = doc(db, 'hostRequests', email.toLowerCase());
+      const existing = await getDoc(reqRef);
+
+      if (existing.exists()) {
+        const status = existing.data().status;
+        if (status === 'approved') {
+          setError('You already have host access! Use "Host a Party" to log in.');
+        } else if (status === 'denied') {
+          setError('Your previous request was denied. Contact the admin directly.');
+        } else {
+          setError('Request already submitted. Please wait for approval.');
         }
-        sessionStorage.setItem('pinVerified', 'true');
-        sessionStorage.setItem('userRole', role);
-        onSuccess(role);
-      } catch (_) {
-        setError('Authentication failed. Please try again.');
+        setLoading(false);
+        return;
       }
-    } else {
-      setError('Invalid PIN. Please try again.');
+
+      // Sign in anonymously just to satisfy Firestore auth requirement
+      await signInAnonymously(auth);
+
+      await setDoc(reqRef, {
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        requestedAt: serverTimestamp(),
+        status: 'pending',
+      });
+
+      // Send email notification
+      if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
+        await emailjs.send(
+          EMAILJS_SERVICE_ID,
+          EMAILJS_TEMPLATE_ID,
+          {
+            from_name: name.trim(),
+            from_email: email.toLowerCase().trim(),
+            admin_url: `${window.location.origin}/admin`,
+          },
+          EMAILJS_PUBLIC_KEY
+        );
+      }
+
+      onSuccess();
+    } catch (err) {
+      console.error('Request access error:', err);
+      setError('Failed to submit. Please try again.');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-purple-500/30 shadow-2xl">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors text-sm">
+          <ChevronLeft className="w-4 h-4" />
+          Back
+        </button>
+
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <UserPlus className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Request Host Access</h2>
+          <p className="text-slate-400 text-sm">Fill in your details and we'll review your request.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+            required
+            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Your email"
+            required
+            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+
+          {error && (
+            <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !name.trim() || !email.trim()}
+            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Send Request'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// REQUEST SENT SCREEN
+// ============================================================================
+function RequestSentScreen({ onBack }) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-green-500/30 shadow-2xl text-center">
+        <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="w-10 h-10 text-green-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-3">Request Sent!</h2>
+        <p className="text-slate-400 mb-8">
+          Your request has been submitted. You'll hear back once it's reviewed. Come back to "Host a Party" once approved.
+        </p>
+        <button
+          onClick={onBack}
+          className="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-2xl transition-colors"
+        >
+          Back to Home
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// HOST LOGIN FORM
+// ============================================================================
+function HostLoginForm({ onBack, onSuccess }) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const approvedRef = doc(db, 'approvedHosts', email.toLowerCase().trim());
+      const approved = await getDoc(approvedRef);
+
+      if (!approved.exists()) {
+        const reqRef = doc(db, 'hostRequests', email.toLowerCase().trim());
+        const req = await getDoc(reqRef);
+        if (req.exists()) {
+          const status = req.data().status;
+          if (status === 'pending') {
+            setError('Your request is still pending approval. Please check back later.');
+          } else if (status === 'denied') {
+            setError('Your host access request was denied.');
+          } else {
+            setError('Email not found. Please request host access first.');
+          }
+        } else {
+          setError('Email not found. Please request host access first.');
+        }
+        setLoading(false);
+        return;
+      }
+
+      await signInAnonymously(auth);
+      const uid = auth.currentUser.uid;
+
+      sessionStorage.setItem('pinVerified', 'true');
+      sessionStorage.setItem('userRole', 'host');
+      sessionStorage.setItem('hostEmail', email.toLowerCase().trim());
+
+      onSuccess(uid, email.toLowerCase().trim());
+    } catch (err) {
+      console.error('Host login error:', err);
+      setError('Login failed. Please try again.');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-purple-500/30 shadow-2xl">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors text-sm">
+          <ChevronLeft className="w-4 h-4" />
+          Back
+        </button>
+
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Crown className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Host Login</h2>
+          <p className="text-slate-400 text-sm">Enter the email you used to request access.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Your email"
+            required
+            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+
+          {error && (
+            <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !email.trim()}
+            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Continue'}
+          </button>
+        </form>
+
+        <p className="text-center text-slate-600 text-xs mt-6">
+          Don't have access?{' '}
+          <button onClick={onBack} className="text-purple-400 hover:text-purple-300">
+            Request it
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// CREATE ROOM FORM
+// ============================================================================
+function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
+  const [guestPin, setGuestPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleCreate = async () => {
+    if (guestPin.length !== 4) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      // Expire any existing active rooms for this host
+      const existingQuery = query(
+        collection(db, 'rooms'),
+        where('hostUid', '==', hostUid),
+        where('status', '==', 'active')
+      );
+      const existingSnap = await getDocs(existingQuery);
+      const expireBatch = writeBatch(db);
+      existingSnap.forEach((d) => expireBatch.update(d.ref, { status: 'expired' }));
+      await expireBatch.commit();
+
+      const roomCode = generateRoomCode();
+      const expiresAt = Timestamp.fromMillis(Date.now() + 12 * 60 * 60 * 1000);
+
+      await setDoc(doc(db, 'rooms', roomCode), {
+        hostUid,
+        hostEmail,
+        guestPin,
+        createdAt: serverTimestamp(),
+        expiresAt,
+        status: 'active',
+      });
+
+      await setDoc(doc(db, 'rooms', roomCode, 'roles', hostUid), { role: 'host' });
+
+      sessionStorage.setItem('roomCode', roomCode);
+
+      onRoomCreated({ roomCode, guestPin });
+    } catch (err) {
+      console.error('Create room error:', err);
+      setError('Failed to create room. Please try again.');
     }
     setLoading(false);
   };
@@ -173,15 +494,138 @@ function PinGate({ onSuccess }) {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
       <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-purple-500/30 shadow-2xl">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/30">
-            <Lock className="w-10 h-10 text-white" />
+          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Hash className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Party Playlist</h1>
-          <p className="text-slate-400">Enter the party PIN to continue</p>
+          <h2 className="text-2xl font-bold text-white mb-2">Set Guest PIN</h2>
+          <p className="text-slate-400 text-sm">Pick a 4-digit PIN your guests will use to join.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={4}
+            value={guestPin}
+            onChange={(e) => setGuestPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="e.g. 4729"
+            className="w-full text-center text-4xl tracking-[0.5em] py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+
+          {error && (
+            <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleCreate}
+            disabled={guestPin.length !== 4 || loading}
+            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Start Party 🎉'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// GUEST JOIN FORM
+// ============================================================================
+function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
+  const [roomCode, setRoomCode] = useState(prefilledCode.toUpperCase());
+  const [pin, setPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    const code = roomCode.toUpperCase().trim();
+
+    try {
+      const roomRef = doc(db, 'rooms', code);
+      const roomDoc = await getDoc(roomRef);
+
+      if (!roomDoc.exists()) {
+        setError('Room not found. Check the code and try again.');
+        setLoading(false);
+        return;
+      }
+
+      const roomData = roomDoc.data();
+
+      if (!isRoomActive(roomData)) {
+        setError('This room has expired. Ask your host to start a new one.');
+        setLoading(false);
+        return;
+      }
+
+      if (roomData.guestPin !== pin) {
+        setError('Wrong PIN. Ask your host for the correct one.');
+        setLoading(false);
+        return;
+      }
+
+      await signInAnonymously(auth);
+      const uid = auth.currentUser.uid;
+
+      const roleRef = doc(db, 'rooms', code, 'roles', uid);
+      const existingRole = await getDoc(roleRef);
+      if (!existingRole.exists()) {
+        await setDoc(roleRef, { role: 'guest' });
+      }
+
+      sessionStorage.setItem('pinVerified', 'true');
+      sessionStorage.setItem('userRole', 'guest');
+      sessionStorage.setItem('roomCode', code);
+
+      onSuccess(uid, code);
+    } catch (err) {
+      console.error('Guest join error:', err);
+      setError('Failed to join. Please try again.');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-purple-500/30 shadow-2xl">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors text-sm">
+          <ChevronLeft className="w-4 h-4" />
+          Back
+        </button>
+
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Music className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Join a Party</h2>
+          <p className="text-slate-400 text-sm">Ask your host for the room code and PIN.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Room Code</label>
+            <input
+              type="text"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+              placeholder="e.g. XK29TM"
+              maxLength={6}
+              required
+              className="w-full text-center text-2xl tracking-widest py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Guest PIN</label>
             <input
               type="text"
               inputMode="numeric"
@@ -189,28 +633,261 @@ function PinGate({ onSuccess }) {
               maxLength={4}
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-              placeholder="Enter 4-digit PIN"
-              className="w-full text-center text-3xl tracking-[0.5em] py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="4-digit PIN"
+              required
+              className="w-full text-center text-3xl tracking-[0.5em] py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>
 
           {error && (
-            <p className="text-red-400 text-center text-sm">{error}</p>
+            <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              {error}
+            </div>
           )}
 
           <button
             type="submit"
-            disabled={pin.length !== 4 || loading}
-            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed hover:from-purple-500 hover:to-pink-500 transition-all duration-300 shadow-lg shadow-purple-500/30"
+            disabled={loading || roomCode.length !== 6 || pin.length !== 4}
+            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
           >
-            {loading ? (
-              <Loader2 className="w-6 h-6 animate-spin mx-auto" />
-            ) : (
-              'Enter Party'
-            )}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Join Party'}
           </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// ADMIN PANEL
+// ============================================================================
+function AdminFlow({ onBack }) {
+  const [adminView, setAdminView] = useState('login');
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState('');
+  const [toast, setToast] = useState(null);
+
+  const handleAdminLogin = (e) => {
+    e.preventDefault();
+    if (pin === ADMIN_PIN) {
+      setAdminView('panel');
+      loadRequests();
+    } else {
+      setError('Wrong PIN.');
+    }
+  };
+
+  const loadRequests = async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'hostRequests'));
+      const reqs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      reqs.sort((a, b) => {
+        const ta = a.requestedAt?.toMillis ? a.requestedAt.toMillis() : 0;
+        const tb = b.requestedAt?.toMillis ? b.requestedAt.toMillis() : 0;
+        return tb - ta;
+      });
+      setRequests(reqs);
+    } catch (err) {
+      console.error('Load requests error:', err);
+    }
+    setLoading(false);
+  };
+
+  const handleApprove = async (req) => {
+    setActionLoading(req.id);
+    try {
+      await updateDoc(doc(db, 'hostRequests', req.id), { status: 'approved' });
+      await setDoc(doc(db, 'approvedHosts', req.id), {
+        name: req.name,
+        email: req.email,
+        approvedAt: serverTimestamp(),
+      });
+      setRequests((prev) => prev.map((r) => r.id === req.id ? { ...r, status: 'approved' } : r));
+      setToast({ message: `${req.name} approved!`, type: 'success' });
+    } catch (e) {
+      console.error('Approve error:', e);
+      setToast({ message: 'Failed to approve.', type: 'error' });
+    }
+    setActionLoading('');
+  };
+
+  const handleDeny = async (req) => {
+    setActionLoading(req.id + '-deny');
+    try {
+      await updateDoc(doc(db, 'hostRequests', req.id), { status: 'denied' });
+      // Remove from approvedHosts if previously approved
+      try { await deleteDoc(doc(db, 'approvedHosts', req.id)); } catch (e) { void e; }
+      setRequests((prev) => prev.map((r) => r.id === req.id ? { ...r, status: 'denied' } : r));
+      setToast({ message: `${req.name} denied.`, type: 'error' });
+    } catch (e) {
+      console.error('Deny error:', e);
+      setToast({ message: 'Failed to deny.', type: 'error' });
+    }
+    setActionLoading('');
+  };
+
+  if (adminView === 'login') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-slate-600/30 shadow-2xl">
+          <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors text-sm">
+            <ChevronLeft className="w-4 h-4" />
+            Back
+          </button>
+
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-8 h-8 text-slate-300" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Admin</h2>
+          </div>
+
+          <form onSubmit={handleAdminLogin} className="space-y-4">
+            <input
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="Admin PIN"
+              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            />
+            {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+            <button
+              type="submit"
+              disabled={!pin}
+              className="w-full py-4 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-2xl disabled:opacity-50 transition-colors"
+            >
+              Enter
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  const pending = requests.filter((r) => r.status === 'pending');
+  const others = requests.filter((r) => r.status !== 'pending');
+
+  const statusBadge = (status) => {
+    if (status === 'approved') return <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full border border-green-500/30">Approved</span>;
+    if (status === 'denied') return <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full border border-red-500/30">Denied</span>;
+    return <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full border border-yellow-500/30">Pending</span>;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 px-6 py-4">
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
+          <div className="flex items-center gap-3">
+            <Shield className="w-6 h-6 text-slate-400" />
+            <h1 className="text-xl font-bold text-white">Admin Panel</h1>
+          </div>
+          <button
+            onClick={loadRequests}
+            className="text-slate-400 hover:text-white text-sm transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-2xl mx-auto px-4 py-6">
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+          </div>
+        ) : (
+          <>
+            <h2 className="text-white font-semibold mb-4">
+              Pending Requests
+              {pending.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">{pending.length}</span>
+              )}
+            </h2>
+
+            {pending.length === 0 ? (
+              <p className="text-slate-500 text-sm italic mb-8">No pending requests.</p>
+            ) : (
+              <div className="space-y-3 mb-8">
+                {pending.map((req) => (
+                  <div key={req.id} className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/50">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-white font-medium">{req.name}</p>
+                        <p className="text-slate-400 text-sm">{req.email}</p>
+                        <p className="text-slate-600 text-xs mt-1">
+                          {req.requestedAt?.toDate ? req.requestedAt.toDate().toLocaleDateString() : ''}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleApprove(req)}
+                          disabled={!!actionLoading}
+                          className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {actionLoading === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleDeny(req)}
+                          disabled={!!actionLoading}
+                          className="px-3 py-2 bg-red-900/50 hover:bg-red-800 text-red-400 hover:text-red-300 text-sm font-semibold rounded-xl border border-red-500/30 transition-colors disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {actionLoading === req.id + '-deny' ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                          Deny
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {others.length > 0 && (
+              <>
+                <h2 className="text-slate-400 font-semibold text-sm uppercase tracking-wider mb-4">Previous</h2>
+                <div className="space-y-2">
+                  {others.map((req) => (
+                    <div key={req.id} className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/30 flex items-center justify-between">
+                      <div>
+                        <p className="text-slate-300 text-sm font-medium">{req.name}</p>
+                        <p className="text-slate-500 text-xs">{req.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {statusBadge(req.status)}
+                        {req.status === 'denied' && (
+                          <button
+                            onClick={() => handleApprove(req)}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 bg-green-600/20 hover:bg-green-600/40 text-green-400 text-xs rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                        )}
+                        {req.status === 'approved' && (
+                          <button
+                            onClick={() => handleDeny(req)}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 text-xs rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </main>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -226,21 +903,19 @@ function QueueSidebar({
   handleDeleteSong,
   isHost,
   userId,
-  handleUpvote
+  handleUpvote,
 }) {
   const upNext = queue.filter((s) => s.status === 'pending');
-  const playedHistory = queue.filter(s => s.status === 'played');
+  const playedHistory = queue.filter((s) => s.status === 'played');
 
   return (
     <>
       <div
-        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${showSidebar ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${showSidebar ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setShowSidebar(false)}
       />
       <aside
-        className={`fixed right-0 bg-slate-900/95 backdrop-blur-lg border-l border-slate-700/50 p-6 overflow-y-auto z-50 transform transition-transform duration-300 top-0 bottom-0 w-80 ${showSidebar ? 'translate-x-0' : 'translate-x-full'
-          }`}
+        className={`fixed right-0 bg-slate-900/95 backdrop-blur-lg border-l border-slate-700/50 p-6 overflow-y-auto z-50 transform transition-transform duration-300 top-0 bottom-0 w-80 ${showSidebar ? 'translate-x-0' : 'translate-x-full'}`}
       >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -274,7 +949,6 @@ function QueueSidebar({
                   <p className="text-slate-400 text-xs truncate">{song.channelTitle}</p>
                 </div>
 
-                {/* Actions - Only if Host */}
                 {isHost ? (
                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
@@ -293,14 +967,10 @@ function QueueSidebar({
                     </button>
                   </div>
                 ) : (
-                  /* Guest Voting */
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleUpvote(song)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId)
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white'
-                        }`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white'}`}
                     >
                       <ArrowUpCircle className="w-4 h-4" />
                       <span className="text-xs font-bold">{song.upvotes?.length || 0}</span>
@@ -312,20 +982,13 @@ function QueueSidebar({
           )}
         </div>
 
-        {/* History Section */}
         {playedHistory.length > 0 && (
           <div className="mt-8 pt-6 border-t border-slate-700/50 opacity-60 hover:opacity-100 transition-opacity">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-              History
-            </h3>
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">History</h3>
             <div className="space-y-3">
               {playedHistory.slice().reverse().map((song) => (
                 <div key={song.id} className="flex items-center gap-3 bg-slate-800/40 rounded-xl p-2 grayscale">
-                  <img
-                    src={song.thumbnailUrl}
-                    alt={song.title}
-                    className="w-10 h-10 rounded-lg object-cover"
-                  />
+                  <img src={song.thumbnailUrl} alt={song.title} className="w-10 h-10 rounded-lg object-cover" />
                   <div className="flex-1 min-w-0">
                     <p className="text-slate-400 text-sm font-medium truncate">{song.title}</p>
                   </div>
@@ -342,7 +1005,7 @@ function QueueSidebar({
 // ============================================================================
 // GUEST VIEW COMPONENT
 // ============================================================================
-function GuestView({ userId }) {
+function GuestView({ userId, roomCode }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -350,30 +1013,20 @@ function GuestView({ userId }) {
   const [queue, setQueue] = useState([]);
   const [showSidebar, setShowSidebar] = useState(false);
 
-  // Listen to queue for display
   useEffect(() => {
     const q = query(
-      collection(db, 'queue'),
+      collection(db, 'rooms', roomCode, 'queue'),
       where('status', 'in', ['pending', 'playing', 'played'])
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const songs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      // Client-side sort: Priority -> Upvotes -> Time Added
+      const songs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       songs.sort((a, b) => {
-        // 1. Priority (Host override)
         if (a.isPriority && !b.isPriority) return -1;
         if (!a.isPriority && b.isPriority) return 1;
-
-        // 2. Upvotes (High to Low)
         const votesA = a.upvotes?.length || 0;
         const votesB = b.upvotes?.length || 0;
         if (votesA !== votesB) return votesB - votesA;
-
-        // 3. Time Added (First in, First out)
         const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
         const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
         return ta - tb;
@@ -385,20 +1038,14 @@ function GuestView({ userId }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [roomCode]);
 
-  // Search YouTube
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-
     setLoading(true);
     try {
-      // Search with videoCategoryId: 10 (Music)
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
-        searchQuery
-      )}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
-
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
       const searchRes = await fetch(searchUrl);
       const searchData = await searchRes.json();
 
@@ -408,18 +1055,13 @@ function GuestView({ userId }) {
         return;
       }
 
-      // Get video details for duration filtering
       const videoIds = searchData.items.map((item) => item.id.videoId).join(',');
       const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds}&key=${YOUTUBE_API_KEY}`;
       const detailsRes = await fetch(detailsUrl);
       const detailsData = await detailsRes.json();
 
-      // Filter videos under 8 minutes
       const filteredResults = detailsData.items
-        .filter((video) => {
-          const duration = parseDuration(video.contentDetails.duration);
-          return duration <= 480; // 8 minutes
-        })
+        .filter((video) => parseDuration(video.contentDetails.duration) <= 480)
         .map((video) => ({
           videoId: video.id,
           title: video.snippet.title,
@@ -436,23 +1078,18 @@ function GuestView({ userId }) {
     setLoading(false);
   };
 
-  // Add song to queue
   const handleAddSong = async (song) => {
-    // Rate limiting
     if (!canAddSong()) {
       setToast({ message: 'Slow down! Max 5 songs per minute.', type: 'error' });
       return;
     }
-
-    // Duplicate check
-    const isDuplicate = queue.some(s => s.videoId === song.videoId);
+    const isDuplicate = queue.some((s) => s.videoId === song.videoId);
     if (isDuplicate) {
       setToast({ message: 'Song already in the queue!', type: 'error' });
       return;
     }
-
     try {
-      await addDoc(collection(db, 'queue'), {
+      await addDoc(collection(db, 'rooms', roomCode, 'queue'), {
         videoId: song.videoId,
         title: song.title,
         thumbnailUrl: song.thumbnailUrl,
@@ -460,12 +1097,11 @@ function GuestView({ userId }) {
         addedBy: userId,
         addedAt: serverTimestamp(),
         status: 'pending',
+        upvotes: [],
+        isPriority: false,
       });
-
       recordSongAdd();
       setToast({ message: 'Song added to queue!', type: 'success' });
-
-      // Remove from search results
       setSearchResults((prev) => prev.filter((s) => s.videoId !== song.videoId));
     } catch (err) {
       console.error('Add song error:', err);
@@ -475,18 +1111,11 @@ function GuestView({ userId }) {
 
   const handleUpvote = async (song) => {
     try {
-      const songRef = doc(db, 'queue', song.id);
+      const songRef = doc(db, 'rooms', roomCode, 'queue', song.id);
       const isVoted = song.upvotes?.includes(userId);
-
-      if (isVoted) {
-        await updateDoc(songRef, {
-          upvotes: arrayRemove(userId)
-        });
-      } else {
-        await updateDoc(songRef, {
-          upvotes: arrayUnion(userId)
-        });
-      }
+      await updateDoc(songRef, {
+        upvotes: isVoted ? arrayRemove(userId) : arrayUnion(userId),
+      });
     } catch (err) {
       console.error('Upvote error:', err);
       setToast({ message: 'Failed to update vote', type: 'error' });
@@ -498,21 +1127,22 @@ function GuestView({ userId }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Header */}
       <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-lg border-b border-slate-700/50 px-4 py-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
               <Music className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-xl font-bold text-white">Party Playlist</h1>
+            <div>
+              <h1 className="text-xl font-bold text-white">Party Playlist</h1>
+              <p className="text-slate-500 text-xs font-mono">{roomCode}</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-slate-400 text-sm">
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">{queue.length} in queue</span>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 text-sm hidden sm:inline">{queue.length} in queue</span>
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="p-2 ml-2 hover:bg-slate-800 rounded-lg transition-colors"
+              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
             >
               <Menu className="w-5 h-5 text-white" />
             </button>
@@ -521,7 +1151,6 @@ function GuestView({ userId }) {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
-        {/* Search Form */}
         <form onSubmit={handleSearch} className="mb-6">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -538,29 +1167,17 @@ function GuestView({ userId }) {
             disabled={loading || !searchQuery.trim()}
             className="w-full mt-3 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
           >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-            ) : (
-              'Search'
-            )}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Search'}
           </button>
         </form>
 
-        {/* Search Results */}
         {searchResults.length > 0 && (
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-white mb-4">Search Results</h2>
             <div className="space-y-3">
               {searchResults.map((song) => (
-                <div
-                  key={song.videoId}
-                  className="flex items-center gap-4 bg-slate-800/60 rounded-2xl p-3 border border-slate-700/50"
-                >
-                  <img
-                    src={song.thumbnailUrl}
-                    alt={song.title}
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
+                <div key={song.videoId} className="flex items-center gap-4 bg-slate-800/60 rounded-2xl p-3 border border-slate-700/50">
+                  <img src={song.thumbnailUrl} alt={song.title} className="w-16 h-16 rounded-xl object-cover" />
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-medium truncate">{song.title}</p>
                     <p className="text-slate-400 text-sm truncate">{song.channelTitle}</p>
@@ -578,7 +1195,6 @@ function GuestView({ userId }) {
           </div>
         )}
 
-        {/* Now Playing */}
         {nowPlaying && (
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -587,11 +1203,7 @@ function GuestView({ userId }) {
             </h2>
             <div className="bg-gradient-to-br from-purple-900/80 to-pink-900/80 rounded-3xl p-4 border border-purple-500/30">
               <div className="flex items-center gap-4">
-                <img
-                  src={nowPlaying.thumbnailUrl}
-                  alt={nowPlaying.title}
-                  className="w-20 h-20 rounded-2xl object-cover shadow-xl"
-                />
+                <img src={nowPlaying.thumbnailUrl} alt={nowPlaying.title} className="w-20 h-20 rounded-2xl object-cover shadow-xl" />
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-bold text-lg truncate">{nowPlaying.title}</p>
                   <p className="text-purple-300 text-sm truncate">{nowPlaying.channelTitle}</p>
@@ -601,7 +1213,6 @@ function GuestView({ userId }) {
           </div>
         )}
 
-        {/* Up Next */}
         {upNext.length > 0 && (
           <div>
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -610,18 +1221,9 @@ function GuestView({ userId }) {
             </h2>
             <div className="space-y-3">
               {upNext.map((song, index) => (
-                <div
-                  key={song.id}
-                  className="flex items-center gap-4 bg-slate-800/40 rounded-2xl p-3 border border-slate-700/30"
-                >
-                  <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-slate-400 font-bold text-sm">
-                    {index + 1}
-                  </div>
-                  <img
-                    src={song.thumbnailUrl}
-                    alt={song.title}
-                    className="w-12 h-12 rounded-xl object-cover"
-                  />
+                <div key={song.id} className="flex items-center gap-4 bg-slate-800/40 rounded-2xl p-3 border border-slate-700/30">
+                  <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-slate-400 font-bold text-sm">{index + 1}</div>
+                  <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover" />
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-medium truncate text-sm">{song.title}</p>
                     <p className="text-slate-400 text-xs truncate">{song.channelTitle}</p>
@@ -632,7 +1234,6 @@ function GuestView({ userId }) {
           </div>
         )}
 
-        {/* Empty State */}
         {!nowPlaying && upNext.length === 0 && searchResults.length === 0 && (
           <div className="text-center py-16">
             <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -644,7 +1245,6 @@ function GuestView({ userId }) {
         )}
       </main>
 
-      {/* Up Next Sidebar */}
       <QueueSidebar
         showSidebar={showSidebar}
         setShowSidebar={setShowSidebar}
@@ -654,14 +1254,7 @@ function GuestView({ userId }) {
         handleUpvote={handleUpvote}
       />
 
-      {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -669,46 +1262,42 @@ function GuestView({ userId }) {
 // ============================================================================
 // HOST VIEW COMPONENT
 // ============================================================================
-function HostView() {
+function HostView({ roomCode, guestPin, onEndRoom }) {
   const [queue, setQueue] = useState([]);
-  const queueRef = useRef([]); // Ref for accessing latest queue in callbacks
+  const queueRef = useRef([]);
   const [currentSong, setCurrentSong] = useState(null);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const playerRef = useRef(null);
   const playerContainerRef = useRef(null);
-  const [playerReady, setPlayerReady] = useState(false); // API Ready
-  const [playerInstanceReady, setPlayerInstanceReady] = useState(false); // Instance Ready
+  const [playerReady, setPlayerReady] = useState(false);
+  const [playerInstanceReady, setPlayerInstanceReady] = useState(false);
   const [playlistId, setPlaylistId] = useState('');
   const [seedingPlaylist, setSeedingPlaylist] = useState(false);
   const [toast, setToast] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [pinCopied, setPinCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   const isInitialLoad = useRef(true);
-
   const transitionTriggeredRef = useRef(false);
 
-  // Reset transition flag when song changes
   useEffect(() => {
     transitionTriggeredRef.current = false;
   }, [currentSong]);
 
-  // Clear Playlist (host only — enforced by Firestore rules)
+  const roomQueueRef = () => collection(db, 'rooms', roomCode, 'queue');
+  const roomDocRef = (id) => doc(db, 'rooms', roomCode, 'queue', id);
+
   const handleClearPlaylist = async () => {
     if (!window.confirm('Are you sure you want to clear the entire playlist?')) return;
-
     try {
-      const q = query(collection(db, 'queue'));
-      const snapshot = await getDocs(q);
-
-      const deletions = snapshot.docs.map(d => deleteDoc(d.ref));
+      const snapshot = await getDocs(roomQueueRef());
+      const deletions = snapshot.docs.map((d) => deleteDoc(d.ref));
       await Promise.all(deletions);
-
       setToast({ message: 'Playlist cleared!', type: 'success' });
-      if (playerRef.current && playerRef.current.stopVideo) {
-        playerRef.current.stopVideo();
-      }
+      if (playerRef.current?.stopVideo) playerRef.current.stopVideo();
       setCurrentSong(null);
       setProgress(0);
       setDuration(0);
@@ -719,83 +1308,48 @@ function HostView() {
     }
   };
 
-  // Seed playlist from YouTube
   const handleSeedPlaylist = async () => {
     if (!playlistId.trim()) return;
-
     setSeedingPlaylist(true);
     try {
-      // Extract playlist ID if full URL was pasted
       let extractedId = playlistId.trim();
       const urlMatch = playlistId.match(/[?&]list=([^&]+)/);
-      if (urlMatch) {
-        extractedId = urlMatch[1];
-      }
+      if (urlMatch) extractedId = urlMatch[1];
 
-      let allValidVideos = [];
+      let allCount = 0;
       let nextPageToken = '';
-      let addedCount = 0;
 
       do {
-        // Fetch playlist items from YouTube API with pagination
-        // This returns items in the user-defined order
         const playlistUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${extractedId}&maxResults=50&pageToken=${nextPageToken}&key=${YOUTUBE_API_KEY}`;
         const playlistRes = await fetch(playlistUrl);
         const playlistData = await playlistRes.json();
 
-        if (playlistData.error) {
-          throw new Error(playlistData.error.message || 'Failed to fetch playlist');
-        }
+        if (playlistData.error) throw new Error(playlistData.error.message || 'Failed to fetch playlist');
+        if (!playlistData.items?.length) break;
 
-        if (!playlistData.items || playlistData.items.length === 0) {
-          if (allValidVideos.length === 0) {
-            setToast({ message: 'Playlist is empty or not found.', type: 'error' });
-            setSeedingPlaylist(false);
-            return;
-          }
-          break;
-        }
-
-        // Get video IDs to fetch duration
-        const videoIds = playlistData.items
-          .map((item) => item.snippet.resourceId?.videoId)
-          .filter(Boolean)
-          .join(',');
-
-        // Fetch video details for duration
-        // Note: The order of items in this response is NOT guaranteed to match the request
-        const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${YOUTUBE_API_KEY}`;
-        const detailsRes = await fetch(detailsUrl);
+        const videoIds = playlistData.items.map((item) => item.snippet.resourceId?.videoId).filter(Boolean).join(',');
+        const detailsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${YOUTUBE_API_KEY}`);
         const detailsData = await detailsRes.json();
 
-        // Create a map of videoId -> duration
         const durationMap = new Map();
-        detailsData.items.forEach(item => {
-          durationMap.set(item.id, parseDuration(item.contentDetails.duration));
-        });
+        detailsData.items.forEach((item) => durationMap.set(item.id, parseDuration(item.contentDetails.duration)));
 
-        // Filter and map using the ORIGINAL playlistData.items to preserve order
         const validVideos = playlistData.items
           .map((item) => {
             const videoId = item.snippet.resourceId?.videoId;
-            const duration = durationMap.get(videoId);
-
-            // If duration is missing (e.g. deleted video) or > 8 mins, skip
-            // Also sometimes duration might be 0 for live streams, we might want to skip those too
-            if (duration === undefined || duration > 480) return null;
-
+            const dur = durationMap.get(videoId);
+            if (dur === undefined || dur > 480) return null;
             return {
-              videoId: videoId,
+              videoId,
               title: item.snippet.title,
               thumbnailUrl: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
-              channelTitle: item.snippet.channelTitle
+              channelTitle: item.snippet.channelTitle,
             };
           })
-          .filter(Boolean); // Remove nulls
+          .filter(Boolean);
 
-        // Add to Firestore sequentially to preserve order in addedAt timestamps
         for (const video of validVideos) {
-          await addDoc(collection(db, 'queue'), {
+          await addDoc(roomQueueRef(), {
             videoId: video.videoId,
             title: video.title,
             thumbnailUrl: video.thumbnailUrl,
@@ -803,18 +1357,16 @@ function HostView() {
             addedBy: 'host-seed',
             addedAt: serverTimestamp(),
             status: 'pending',
+            upvotes: [],
+            isPriority: false,
           });
-          addedCount++;
+          allCount++;
         }
 
         nextPageToken = playlistData.nextPageToken;
       } while (nextPageToken);
 
-      if (addedCount === 0) {
-        setToast({ message: 'No valid videos found (all over 8 min).', type: 'error' });
-      } else {
-        setToast({ message: `Added ${addedCount} songs from playlist!`, type: 'success' });
-      }
+      setToast({ message: allCount > 0 ? `Added ${allCount} songs!` : 'No valid videos found.', type: allCount > 0 ? 'success' : 'error' });
       setPlaylistId('');
     } catch (err) {
       console.error('Seed playlist error:', err);
@@ -823,134 +1375,66 @@ function HostView() {
     setSeedingPlaylist(false);
   };
 
-  // Load YouTube IFrame API
   useEffect(() => {
-    if (window.YT) {
-      setPlayerReady(true);
-      return;
-    }
-
+    if (window.YT) { setPlayerReady(true); return; }
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-    window.onYouTubeIframeAPIReady = () => {
-      setPlayerReady(true);
-    };
+    document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
+    window.onYouTubeIframeAPIReady = () => setPlayerReady(true);
   }, []);
 
-  // Handle song ended
-  const handleSongEnded = async () => {
-    if (currentSong) {
-      // Atomic update: Mark current as played AND next as playing
-      const batch = writeBatch(db);
-      const currentRef = doc(db, 'queue', currentSong.id);
-      batch.update(currentRef, { status: 'played' });
-
-      // Find next song (first pending) from REF to ensure fresh state
-      const nextSong = queueRef.current.filter(s => s.status === 'pending')[0];
-      console.log('HandleSongEnded: Next song determined:', nextSong?.title);
-
-      if (nextSong) {
-        const nextRef = doc(db, 'queue', nextSong.id);
-        batch.update(nextRef, { status: 'playing' });
-      } else {
-        setCurrentSong(null);
-      }
-
-      await batch.commit();
-
-      // Reset local player state if no next song
-      if (!nextSong) {
-        setProgress(0);
-        setDuration(0);
-      }
+  const handleSongEnded = useCallback(async () => {
+    if (!currentSong) return;
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'rooms', roomCode, 'queue', currentSong.id), { status: 'played' });
+    const nextSong = queueRef.current.filter((s) => s.status === 'pending')[0];
+    if (nextSong) {
+      batch.update(doc(db, 'rooms', roomCode, 'queue', nextSong.id), { status: 'playing' });
+    } else {
+      setCurrentSong(null);
     }
-  };
+    await batch.commit();
+    if (!nextSong) { setProgress(0); setDuration(0); }
+  }, [currentSong, roomCode]);
 
-  // Ref to hold the latest version of the handler to avoid stale closures in YouTube API
   const onStateChangeRef = useRef(null);
 
-  // Handle player state changes
   const handlePlayerStateChange = useCallback((event) => {
-    // YT.PlayerState.ENDED = 0
-    if (event.data === 0) {
-      handleSongEnded();
-    }
-    // YT.PlayerState.PLAYING = 1
+    if (event.data === 0) handleSongEnded();
     setIsPlaying(event.data === 1);
-  }, [queue, currentSong, handleSongEnded]); // Properly include dependencies
+  }, [handleSongEnded]);
 
-  // Update ref on every render so the player always calls the latest version
-  useEffect(() => {
-    onStateChangeRef.current = handlePlayerStateChange;
-  }, [handlePlayerStateChange]);
+  useEffect(() => { onStateChangeRef.current = handlePlayerStateChange; }, [handlePlayerStateChange]);
 
-  // Screen Wake Lock: keep screen on while music is playing so phone lock doesn't kill audio
-  // Works on iOS 16.4+ when installed as a PWA; on Android Chrome in regular browser too
   useEffect(() => {
     if (!('wakeLock' in navigator)) return;
     let wakeLock = null;
-
     const acquire = async () => {
-      try {
-        wakeLock = await navigator.wakeLock.request('screen');
-      } catch (e) {
-        // Denied (e.g. low battery mode) — fail silently
-      }
+      try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { void e; }
     };
-
-    const release = () => {
-      if (wakeLock) {
-        wakeLock.release();
-        wakeLock = null;
-      }
-    };
-
-    // Wake lock is auto-released when tab becomes hidden; re-acquire when visible again
+    const release = () => { if (wakeLock) { wakeLock.release(); wakeLock = null; } };
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isPlaying) {
-        acquire();
-      }
+      if (document.visibilityState === 'visible' && isPlaying) acquire();
     };
-
     if (isPlaying) {
       acquire();
       document.addEventListener('visibilitychange', handleVisibilityChange);
     } else {
       release();
     }
-
-    return () => {
-      release();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    return () => { release(); document.removeEventListener('visibilitychange', handleVisibilityChange); };
   }, [isPlaying]);
 
-  // MediaSession API: register track metadata + controls with the OS lock screen
-  // Enables lock screen controls on Android Chrome and iOS PWA
   useEffect(() => {
     if (!('mediaSession' in navigator) || !currentSong) return;
-
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentSong.title,
       artist: currentSong.channelTitle || 'Party Playlist',
-      artwork: currentSong.thumbnailUrl
-        ? [{ src: currentSong.thumbnailUrl, sizes: '480x360', type: 'image/jpeg' }]
-        : [],
+      artwork: currentSong.thumbnailUrl ? [{ src: currentSong.thumbnailUrl, sizes: '480x360', type: 'image/jpeg' }] : [],
     });
-
-    navigator.mediaSession.setActionHandler('play', () => {
-      playerRef.current?.playVideo();
-    });
-    navigator.mediaSession.setActionHandler('pause', () => {
-      playerRef.current?.pauseVideo();
-    });
-    navigator.mediaSession.setActionHandler('nexttrack', () => {
-      handleSongEnded();
-    });
-
+    navigator.mediaSession.setActionHandler('play', () => playerRef.current?.playVideo());
+    navigator.mediaSession.setActionHandler('pause', () => playerRef.current?.pauseVideo());
+    navigator.mediaSession.setActionHandler('nexttrack', () => handleSongEnded());
     return () => {
       navigator.mediaSession.setActionHandler('play', null);
       navigator.mediaSession.setActionHandler('pause', null);
@@ -958,308 +1442,199 @@ function HostView() {
     };
   }, [currentSong, handleSongEnded]);
 
-  // Initialize player when ready
   useEffect(() => {
     if (!playerReady || playerRef.current) return;
-
     playerRef.current = new window.YT.Player('youtube-player', {
-      height: '1',
-      width: '1',
-      playerVars: {
-        autoplay: 0,
-        controls: 0,
-        disablekb: 1,
-        fs: 0,
-        modestbranding: 1,
-        rel: 0,
-      },
+      height: '1', width: '1',
+      playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0 },
       events: {
-        // Delegate to the ref to key access to fresh state
-        onStateChange: (event) => {
-          if (onStateChangeRef.current) {
-            onStateChangeRef.current(event);
-          }
-        },
-        onReady: () => {
-          console.log('YouTube Player Ready');
-          setPlayerInstanceReady(true);
-        },
+        onStateChange: (event) => { if (onStateChangeRef.current) onStateChangeRef.current(event); },
+        onReady: () => setPlayerInstanceReady(true),
       },
     });
-    // Cleanup function to destroy player and clear ref
     return () => {
-      if (playerRef.current && playerRef.current.destroy) {
-        playerRef.current.destroy();
-      }
+      if (playerRef.current?.destroy) playerRef.current.destroy();
       playerRef.current = null;
       setPlayerInstanceReady(false);
     };
   }, [playerReady]);
 
-  // Sync Player with Current Song
   useEffect(() => {
     if (!playerInstanceReady || !playerRef.current || !currentSong) return;
-
-    // Check if player is already playing this video
     if (playerRef.current.getVideoData) {
-      const playerVideoData = playerRef.current.getVideoData();
-      if (playerVideoData && playerVideoData.video_id === currentSong.videoId) {
-        // Force play if we are in this state to be sure
-        if (playerRef.current.getPlayerState && playerRef.current.getPlayerState() !== 1) { // 1 = Playing
-          playerRef.current.playVideo();
-        }
+      const vd = playerRef.current.getVideoData();
+      if (vd?.video_id === currentSong.videoId) {
+        if (playerRef.current.getPlayerState?.() !== 1) playerRef.current.playVideo();
         return;
       }
     }
-
     if (isInitialLoad.current) {
-      // Check for saved progress
       let startSeconds = 0;
       try {
         const saved = localStorage.getItem('party_playlist_progress');
         if (saved) {
           const { videoId, timestamp, savedAt } = JSON.parse(saved);
-          // Valid if same video and saved recently (e.g. within 24h)
-          if (videoId === currentSong.videoId && (Date.now() - savedAt < 24 * 60 * 60 * 1000)) {
-            startSeconds = timestamp;
-            console.log(`Restoring playback at ${timestamp}s`);
-          }
+          if (videoId === currentSong.videoId && (Date.now() - savedAt < 24 * 60 * 60 * 1000)) startSeconds = timestamp;
         }
-      } catch (e) {
-        console.error('Failed to load saved progress', e);
-      }
-
-      if (playerRef.current.cueVideoById) {
-        playerRef.current.cueVideoById({
-          videoId: currentSong.videoId,
-          startSeconds: startSeconds,
-          suggestedQuality: 'default'
-        });
-      }
+      } catch (e) { void e; }
+      playerRef.current.cueVideoById?.({ videoId: currentSong.videoId, startSeconds, suggestedQuality: 'default' });
       isInitialLoad.current = false;
     } else {
-      if (playerRef.current.loadVideoById) {
-        playerRef.current.loadVideoById({
-          videoId: currentSong.videoId,
-          startSeconds: 0,
-          suggestedQuality: 'default'
-        });
-      }
+      playerRef.current.loadVideoById?.({ videoId: currentSong.videoId, startSeconds: 0, suggestedQuality: 'default' });
     }
   }, [currentSong, playerInstanceReady]);
 
-  // Listen to queue
   useEffect(() => {
     const q = query(
-      collection(db, 'queue'),
+      collection(db, 'rooms', roomCode, 'queue'),
       where('status', 'in', ['pending', 'playing', 'played'])
     );
-
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const songs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // Client-side sort: Priority -> Upvotes -> Time Added
+      const songs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       songs.sort((a, b) => {
-        // 1. Priority (Host override)
         if (a.isPriority && !b.isPriority) return -1;
         if (!a.isPriority && b.isPriority) return 1;
-
-        // 2. Upvotes (High to Low)
-        const votesA = a.upvotes?.length || 0;
-        const votesB = b.upvotes?.length || 0;
-        if (votesA !== votesB) return votesB - votesA;
-
-        // 3. Time Added (First in, First out)
+        const vA = a.upvotes?.length || 0, vB = b.upvotes?.length || 0;
+        if (vA !== vB) return vB - vA;
         const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
         const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
         return ta - tb;
       });
-
       setQueue(songs);
-      queueRef.current = songs; // Keep ref in sync
+      queueRef.current = songs;
 
-      // Find currently playing song
       const playing = songs.find((s) => s.status === 'playing');
-
       if (playing) {
-        // If we have a playing song and it's different from current, load it
-        if (!currentSong || currentSong.id !== playing.id) {
-          setCurrentSong(playing);
-        }
+        if (!currentSong || currentSong.id !== playing.id) setCurrentSong(playing);
       } else {
-        // No song playing, start the first pending one
-        // Note: We rely on handleSongEnded to trigger this transition usually.
-        // But if the app loads fresh and nothing is playing but there are pending songs, we kickstart it.
         const nextSong = songs.find((s) => s.status === 'pending');
         if (nextSong) {
-          // Check if we just finished a song to avoid double-trigger? 
-          // If 'playing' is undefined, and we have pending, we should play.
-          await updateDoc(doc(db, 'queue', nextSong.id), { status: 'playing' });
+          await updateDoc(doc(db, 'rooms', roomCode, 'queue', nextSong.id), { status: 'playing' });
         } else {
           setCurrentSong(null);
         }
       }
     });
-
     return () => unsubscribe();
-  }, [currentSong]);
+  }, [currentSong, roomCode]);
 
-  // Update progress
   useEffect(() => {
     if (!playerRef.current) return;
-
     const interval = setInterval(() => {
-      if (playerRef.current && playerRef.current.getCurrentTime && playerRef.current.getDuration) {
+      if (playerRef.current?.getCurrentTime && playerRef.current?.getDuration) {
         try {
           const current = playerRef.current.getCurrentTime();
           const total = playerRef.current.getDuration();
           if (total > 0) {
             setProgress(current);
             setDuration(total);
-
-            // Save progress locally (lite persistence)
             if (currentSong) {
-              localStorage.setItem('party_playlist_progress', JSON.stringify({
-                videoId: currentSong.videoId,
-                timestamp: current,
-                savedAt: Date.now()
-              }));
+              localStorage.setItem('party_playlist_progress', JSON.stringify({ videoId: currentSong.videoId, timestamp: current, savedAt: Date.now() }));
             }
-
-            // Proactive transition: If less than 2 seconds remain, trigger next song
             if (total - current < 2 && !transitionTriggeredRef.current && isPlaying) {
-              console.log('Proactive transition triggered');
               transitionTriggeredRef.current = true;
               handleSongEnded();
             }
           }
-        } catch (_) {
-          // Player not ready
-        }
+        } catch (e) { void e; }
       }
     }, 250);
-
     return () => clearInterval(interval);
-  }, [playerReady, isPlaying]);
+  }, [playerReady, isPlaying, currentSong, handleSongEnded]);
 
-  // Handle Seek
   const handleSeek = (e) => {
     const time = parseFloat(e.target.value);
-    setProgress(time); // Immediate visual feedback
-    if (playerRef.current && playerRef.current.seekTo) {
-      playerRef.current.seekTo(time, true);
-    }
+    setProgress(time);
+    if (playerRef.current?.seekTo) playerRef.current.seekTo(time, true);
   };
 
-  // Handle song ended
-
-
-  // Skip song
   const handleSkip = async () => {
-    if (currentSong) {
-      if (playerRef.current && playerRef.current.stopVideo) {
-        playerRef.current.stopVideo();
-      }
-
-      const batch = writeBatch(db);
-      const currentRef = doc(db, 'queue', currentSong.id);
-      batch.update(currentRef, { status: 'played' });
-
-      const nextSong = queue.filter(s => s.status === 'pending')[0];
-
-      if (nextSong) {
-        const nextRef = doc(db, 'queue', nextSong.id);
-        batch.update(nextRef, { status: 'playing' });
-      } else {
-        setCurrentSong(null);
-      }
-
-      await batch.commit();
-
-      setProgress(0);
-      setDuration(0);
+    if (!currentSong) return;
+    playerRef.current?.stopVideo?.();
+    const batch = writeBatch(db);
+    batch.update(roomDocRef(currentSong.id), { status: 'played' });
+    const nextSong = queue.filter((s) => s.status === 'pending')[0];
+    if (nextSong) {
+      batch.update(roomDocRef(nextSong.id), { status: 'playing' });
+    } else {
+      setCurrentSong(null);
     }
+    await batch.commit();
+    setProgress(0);
+    setDuration(0);
   };
 
-  // Previous song
   const handlePrevious = async () => {
-    // Smart Previous: Restart if > 10s
-    if (playerRef.current && playerRef.current.getCurrentTime) {
+    if (playerRef.current?.getCurrentTime) {
       const currentTime = playerRef.current.getCurrentTime();
-      if (currentTime > 10) {
-        playerRef.current.seekTo(0);
-        return;
-      }
+      if (currentTime > 10) { playerRef.current.seekTo(0); return; }
     }
-
-    const playedSongs = queue.filter(s => s.status === 'played');
+    const playedSongs = queue.filter((s) => s.status === 'played');
     if (playedSongs.length === 0) return;
-
     const lastPlayed = playedSongs[playedSongs.length - 1];
-
-    if (currentSong) {
-      await updateDoc(doc(db, 'queue', currentSong.id), { status: 'pending' });
-    }
-
-    await updateDoc(doc(db, 'queue', lastPlayed.id), { status: 'playing' });
+    if (currentSong) await updateDoc(roomDocRef(currentSong.id), { status: 'pending' });
+    await updateDoc(roomDocRef(lastPlayed.id), { status: 'playing' });
   };
 
-  // Delete song from queue
   const handleDeleteSong = async (songId) => {
     if (!window.confirm('Delete this song from queue?')) return;
     try {
-      await deleteDoc(doc(db, 'queue', songId));
+      await deleteDoc(roomDocRef(songId));
       setToast({ message: 'Song removed from queue', type: 'success' });
-    } catch (err) {
-      console.error('Delete song error:', err);
+    } catch (e) {
+      console.error('Delete song error:', e);
       setToast({ message: 'Failed to delete song', type: 'error' });
     }
   };
 
-  // Play next (prioritize)
   const handlePlayNext = async (song) => {
     try {
-      const pendingSongs = queue.filter(s => s.status === 'pending');
+      const pendingSongs = queue.filter((s) => s.status === 'pending');
       if (pendingSongs.length === 0) return;
-
       const topSong = pendingSongs[0];
-
-      if (topSong.id === song.id) {
-        setToast({ message: 'Song is already up next!', type: 'success' });
-        return;
-      }
-
+      if (topSong.id === song.id) { setToast({ message: 'Song is already up next!', type: 'success' }); return; }
       let newTime;
-      if (topSong.addedAt && typeof topSong.addedAt.toMillis === 'function') {
+      if (topSong.addedAt?.toMillis) {
         newTime = Timestamp.fromMillis(topSong.addedAt.toMillis() - 1000);
       } else {
-        const baseTime = topSong.addedAt?.toMillis ? topSong.addedAt.toMillis() : Date.now();
-        newTime = Timestamp.fromMillis(baseTime - 1000);
+        const base = topSong.addedAt?.toMillis ? topSong.addedAt.toMillis() : Date.now();
+        newTime = Timestamp.fromMillis(base - 1000);
       }
-
-      await updateDoc(doc(db, 'queue', song.id), {
-        isPriority: true,
-        addedAt: newTime // Keep this to ensure "Play Next" items sort amongst themselves by time if needed
-      });
-
-      setToast({ message: 'Song moved to top of queue!', type: 'success' });
+      await updateDoc(roomDocRef(song.id), { isPriority: true, addedAt: newTime });
+      setToast({ message: 'Song moved to top!', type: 'success' });
       setShowSidebar(false);
-    } catch (err) {
-      console.error('Play next error:', err);
+    } catch (e) {
+      console.error('Play next error:', e);
       setToast({ message: 'Failed to prioritize song', type: 'error' });
     }
   };
 
   const togglePlay = () => {
-    if (playerRef.current) {
-      if (playerRef.current.getPlayerState() === 1) { // Playing
-        playerRef.current.pauseVideo();
-      } else {
-        playerRef.current.playVideo();
-      }
+    if (!playerRef.current) return;
+    if (playerRef.current.getPlayerState() === 1) {
+      playerRef.current.pauseVideo();
+    } else {
+      playerRef.current.playVideo();
+    }
+  };
+
+  const copyToClipboard = async (text, setCopied) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) { void e; }
+  };
+
+  const handleEndRoom = async () => {
+    if (!window.confirm('End this party? The room will close for all guests.')) return;
+    try {
+      await updateDoc(doc(db, 'rooms', roomCode), { status: 'expired' });
+      clearSession();
+      onEndRoom();
+    } catch (e) {
+      console.error('End room error:', e);
+      setToast({ message: 'Failed to end room.', type: 'error' });
     }
   };
 
@@ -1267,68 +1642,92 @@ function HostView() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
-      {/* Hidden YouTube Player */}
       <div className="absolute" style={{ width: 1, height: 1, overflow: 'hidden' }}>
         <div id="youtube-player" ref={playerContainerRef}></div>
       </div>
 
       {/* Header */}
-      <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 px-6 py-4">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-              <Music className="w-6 h-6 text-white" />
+      <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 px-4 py-3">
+        <div className="max-w-4xl mx-auto">
+          {/* Top row */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                <Crown className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Party Playlist</h1>
+                <p className="text-slate-400 text-xs">Host View</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Party Playlist</h1>
-              <p className="text-slate-400 text-sm">Host View</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleEndRoom}
+                className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 border border-red-500/30 hover:bg-red-500/10 rounded-lg transition-colors"
+              >
+                End Party
+              </button>
+              <button
+                onClick={() => setShowSidebar(!showSidebar)}
+                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <Menu className="w-5 h-5 text-white" />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-slate-400">
-            <Users className="w-5 h-5" />
-            <span className="text-lg hidden md:inline">{queue.length} songs</span>
+
+          {/* Room info row — guests join using these */}
+          <div className="flex items-center gap-3 bg-slate-800/60 rounded-2xl px-4 py-3 border border-slate-700/40">
+            <div className="flex-1">
+              <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Room Code</p>
+              <p className="text-white font-mono font-bold text-lg tracking-widest">{roomCode}</p>
+            </div>
             <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              className="p-2 ml-2 hover:bg-slate-800 rounded-lg transition-colors"
+              onClick={() => copyToClipboard(roomCode, setCodeCopied)}
+              className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+              title="Copy room code"
             >
-              <Menu className="w-6 h-6 text-white" />
+              {codeCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+            </button>
+
+            <div className="w-px h-8 bg-slate-700" />
+
+            <div className="flex-1">
+              <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
+              <p className="text-white font-mono font-bold text-lg tracking-widest">{guestPin}</p>
+            </div>
+            <button
+              onClick={() => copyToClipboard(guestPin, setPinCopied)}
+              className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+              title="Copy guest PIN"
+            >
+              {pinCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
-        </div>
 
-        {/* Seed Playlist Section */}
-        <div className="max-w-4xl mx-auto mt-4">
-          <div className="flex gap-3">
+          {/* Seed Playlist */}
+          <div className="flex gap-2 mt-3">
             <div className="flex-1 relative">
-              <ListPlus className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <ListPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 value={playlistId}
                 onChange={(e) => setPlaylistId(e.target.value)}
                 placeholder="Paste YouTube Playlist ID or URL to seed..."
-                className="w-full pl-12 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
               />
             </div>
             <button
               onClick={handleSeedPlaylist}
               disabled={seedingPlaylist || !playlistId.trim()}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300 flex items-center gap-2 text-sm"
+              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
             >
-              {seedingPlaylist ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <ListPlus className="w-4 h-4" />
-                  Seed Playlist
-                </>
-              )}
+              {seedingPlaylist ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListPlus className="w-4 h-4" />}
+              Seed
             </button>
             <button
               onClick={handleClearPlaylist}
-              className="px-4 py-3 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 font-semibold rounded-xl transition-all duration-300 flex items-center gap-2 text-sm border border-slate-700 hover:border-red-500/30"
+              className="px-3 py-2.5 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 rounded-xl transition-all border border-slate-700 hover:border-red-500/30"
               title="Clear Playlist"
             >
               <Trash2 className="w-4 h-4" />
@@ -1341,15 +1740,12 @@ function HostView() {
       <main className="flex-1 flex flex-col items-center justify-center p-8">
         {currentSong ? (
           <div className="w-full max-w-2xl">
-            {/* Album Art */}
             <div className="relative mb-8">
               <img
                 src={currentSong.thumbnailUrl?.replace('mqdefault', 'maxresdefault') || currentSong.thumbnailUrl}
                 alt={currentSong.title}
                 className="w-full aspect-video rounded-3xl object-cover shadow-2xl shadow-purple-500/20"
-                onError={(e) => {
-                  e.target.src = currentSong.thumbnailUrl;
-                }}
+                onError={(e) => { e.target.src = currentSong.thumbnailUrl; }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent rounded-3xl" />
               <div className="absolute bottom-6 left-6 right-6">
@@ -1359,8 +1755,7 @@ function HostView() {
               </div>
             </div>
 
-            {/* Progress Bar / Seeker */}
-            <div className="mb-6 group">
+            <div className="mb-6">
               <input
                 type="range"
                 min="0"
@@ -1368,9 +1763,7 @@ function HostView() {
                 value={progress}
                 onChange={handleSeek}
                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-125"
-                style={{
-                  background: `linear-gradient(to right, #a855f7 0%, #ec4899 ${progressPercent}%, #334155 ${progressPercent}%, #334155 100%)`
-                }}
+                style={{ background: `linear-gradient(to right, #a855f7 0%, #ec4899 ${progressPercent}%, #334155 ${progressPercent}%, #334155 100%)` }}
               />
               <div className="flex justify-between text-sm text-slate-400 mt-2">
                 <span>{formatTime(progress)}</span>
@@ -1378,33 +1771,14 @@ function HostView() {
               </div>
             </div>
 
-            {/* Controls */}
             <div className="flex justify-center gap-6">
-              <button
-                onClick={handlePrevious}
-                className="w-14 h-14 bg-slate-700 hover:bg-slate-600 text-white rounded-full flex items-center justify-center transition-colors"
-                title="Previous Song"
-              >
+              <button onClick={handlePrevious} className="w-14 h-14 bg-slate-700 hover:bg-slate-600 text-white rounded-full flex items-center justify-center transition-colors" title="Previous">
                 <SkipBack className="w-6 h-6" />
               </button>
-
-              <button
-                onClick={togglePlay}
-                className="w-16 h-16 bg-white hover:bg-slate-200 text-purple-900 rounded-full flex items-center justify-center transition-colors shadow-lg shadow-white/10"
-                title={isPlaying ? "Pause" : "Play"}
-              >
-                {isPlaying ? (
-                  <Pause className="w-8 h-8 fill-current" />
-                ) : (
-                  <Play className="w-8 h-8 fill-current translate-x-1" />
-                )}
+              <button onClick={togglePlay} className="w-16 h-16 bg-white hover:bg-slate-200 text-purple-900 rounded-full flex items-center justify-center transition-colors shadow-lg shadow-white/10" title={isPlaying ? 'Pause' : 'Play'}>
+                {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current translate-x-1" />}
               </button>
-
-              <button
-                onClick={handleSkip}
-                className="w-14 h-14 bg-slate-700 hover:bg-slate-600 text-white rounded-full flex items-center justify-center transition-colors"
-                title="Skip Song"
-              >
+              <button onClick={handleSkip} className="w-14 h-14 bg-slate-700 hover:bg-slate-600 text-white rounded-full flex items-center justify-center transition-colors" title="Skip">
                 <SkipForward className="w-6 h-6" />
               </button>
             </div>
@@ -1415,12 +1789,13 @@ function HostView() {
               <Music className="w-16 h-16 text-slate-600" />
             </div>
             <h2 className="text-3xl font-bold text-white mb-4">Waiting for songs...</h2>
-            <p className="text-slate-400 text-lg">Share the QR code to let guests add songs!</p>
+            <p className="text-slate-400 text-lg">
+              Tell guests: Room <span className="font-mono text-purple-400">{roomCode}</span> · PIN <span className="font-mono text-pink-400">{guestPin}</span>
+            </p>
           </div>
         )}
       </main>
 
-      {/* Up Next Sidebar */}
       <QueueSidebar
         showSidebar={showSidebar}
         setShowSidebar={setShowSidebar}
@@ -1430,14 +1805,7 @@ function HostView() {
         isHost={true}
       />
 
-      {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -1446,39 +1814,108 @@ function HostView() {
 // MAIN APP COMPONENT
 // ============================================================================
 function App() {
-  const [authenticated, setAuthenticated] = useState(false);
+  const initialPath = window.location.pathname;
+  const initialJoinMatch = initialPath.match(/^\/join\/([A-Z0-9]+)$/i);
+
+  const [view, setView] = useState(() => {
+    if (initialPath === '/admin') return 'admin';
+    return 'loading';
+  });
   const [userId, setUserId] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const [currentRoom, setCurrentRoom] = useState(null); // { roomCode, guestPin? }
+  const [hostUid, setHostUid] = useState(null);
+  const [hostEmail, setHostEmail] = useState('');
+  const [prefilledCode] = useState(() => initialJoinMatch ? initialJoinMatch[1].toUpperCase() : '');
 
-  // Check for existing session
   useEffect(() => {
-    const pinVerified = sessionStorage.getItem('pinVerified');
+    if (view === 'admin') return;
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const pinVerified = sessionStorage.getItem('pinVerified');
+    const userRole = sessionStorage.getItem('userRole');
+    const savedRoomCode = sessionStorage.getItem('roomCode');
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && pinVerified) {
         setUserId(user.uid);
-        setAuthenticated(true);
+
+        if (userRole === 'host' && savedRoomCode) {
+          try {
+            const roomDoc = await getDoc(doc(db, 'rooms', savedRoomCode));
+            if (roomDoc.exists() && isRoomActive(roomDoc.data())) {
+              const rd = roomDoc.data();
+              setCurrentRoom({ roomCode: savedRoomCode, guestPin: rd.guestPin });
+              setView('host-view');
+              return;
+            }
+          } catch (e) {
+            console.error('Session restore error:', e);
+          }
+          clearSession();
+          setView('landing');
+        } else if (userRole === 'guest' && savedRoomCode) {
+          setCurrentRoom({ roomCode: savedRoomCode });
+          setView('guest-view');
+        } else {
+          setView(prefilledCode ? 'guest-join' : 'landing');
+        }
+      } else {
+        setView(prefilledCode ? 'guest-join' : 'landing');
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handlePinSuccess = (role) => {
-    setAuthenticated(true);
-    if (auth.currentUser) {
-      setUserId(auth.currentUser.uid);
+  const handleHostLogin = async (uid, email) => {
+    setHostUid(uid);
+    setHostEmail(email);
+    setUserId(uid);
+
+    // Check for existing active room
+    try {
+      const existingQuery = query(
+        collection(db, 'rooms'),
+        where('hostUid', '==', uid),
+        where('status', '==', 'active')
+      );
+      const snap = await getDocs(existingQuery);
+      const activeRoom = snap.docs.find((d) => isRoomActive(d.data()));
+
+      if (activeRoom) {
+        const rd = activeRoom.data();
+        const roomCode = activeRoom.id;
+        sessionStorage.setItem('roomCode', roomCode);
+        setCurrentRoom({ roomCode, guestPin: rd.guestPin });
+        setView('host-view');
+        return;
+      }
+    } catch (e) {
+      console.error('Active room check error:', e);
     }
-    if (role === 'host') {
-      navigate('/host');
-    } else {
-      navigate('/');
-    }
+
+    setView('create-room');
   };
 
-  if (loading) {
+  const handleRoomCreated = (room) => {
+    setCurrentRoom(room);
+    setView('host-view');
+  };
+
+  const handleGuestJoined = (uid, roomCode) => {
+    setUserId(uid);
+    setCurrentRoom({ roomCode });
+    setView('guest-view');
+  };
+
+  const handleEndRoom = () => {
+    setCurrentRoom(null);
+    setHostUid(null);
+    setHostEmail('');
+    setView('landing');
+  };
+
+  if (view === 'loading') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
@@ -1486,15 +1923,85 @@ function App() {
     );
   }
 
-  if (!authenticated) {
-    return <PinGate onSuccess={handlePinSuccess} />;
+  if (view === 'admin') {
+    return <AdminFlow onBack={() => setView('landing')} />;
   }
 
+  if (view === 'landing') {
+    return (
+      <LandingPage
+        onHostParty={() => setView('host-login')}
+        onJoinParty={() => setView('guest-join')}
+        onRequestAccess={() => setView('request-access')}
+        onAdmin={() => setView('admin')}
+      />
+    );
+  }
+
+  if (view === 'request-access') {
+    return (
+      <RequestAccessForm
+        onBack={() => setView('landing')}
+        onSuccess={() => setView('request-sent')}
+      />
+    );
+  }
+
+  if (view === 'request-sent') {
+    return <RequestSentScreen onBack={() => setView('landing')} />;
+  }
+
+  if (view === 'host-login') {
+    return (
+      <HostLoginForm
+        onBack={() => setView('landing')}
+        onSuccess={handleHostLogin}
+      />
+    );
+  }
+
+  if (view === 'create-room') {
+    return (
+      <CreateRoomForm
+        hostUid={hostUid}
+        hostEmail={hostEmail}
+        onRoomCreated={handleRoomCreated}
+      />
+    );
+  }
+
+  if (view === 'host-view' && currentRoom) {
+    return (
+      <HostView
+        roomCode={currentRoom.roomCode}
+        guestPin={currentRoom.guestPin}
+        onEndRoom={handleEndRoom}
+      />
+    );
+  }
+
+  if (view === 'guest-join') {
+    return (
+      <GuestJoinForm
+        onBack={() => setView('landing')}
+        onSuccess={handleGuestJoined}
+        prefilledCode={prefilledCode}
+      />
+    );
+  }
+
+  if (view === 'guest-view' && currentRoom) {
+    return <GuestView userId={userId} roomCode={currentRoom.roomCode} />;
+  }
+
+  // Fallback
   return (
-    <Routes>
-      <Route path="/" element={<GuestView userId={userId} />} />
-      <Route path="/host" element={<HostView />} />
-    </Routes>
+    <LandingPage
+      onHostParty={() => setView('host-login')}
+      onJoinParty={() => setView('guest-join')}
+      onRequestAccess={() => setView('request-access')}
+      onAdmin={() => setView('admin')}
+    />
   );
 }
 

@@ -1,5 +1,4 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -9,54 +8,73 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userRole() {
-      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role;
+    function roomRole(roomCode) {
+      return get(/databases/$(database)/documents/rooms/$(roomCode)/roles/$(request.auth.uid)).data.role;
     }
 
-    function isHost() {
-      return isAuthenticated() && userRole() == 'host';
+    function isRoomHost(roomCode) {
+      return isAuthenticated() && roomRole(roomCode) == 'host';
     }
 
-    // An update is "only upvoting" if the only field changed is `upvotes`
     function onlyUpvoting() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']);
     }
 
-    // ── Roles collection ──────────────────────────────────────────────────────
-    // Each user writes their own role document once on sign-in.
-    // Updates and deletes are blocked — role cannot be escalated after creation.
+    // ── Host access requests ──────────────────────────────────────────────────
+    // Anyone authenticated can submit or read; admin approves from client
+    match /hostRequests/{email} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ── Approved hosts ────────────────────────────────────────────────────────
+    // Any authenticated user can read (login check); admin writes from client
+    match /approvedHosts/{email} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ── Rooms ─────────────────────────────────────────────────────────────────
+    match /rooms/{roomCode} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && resource.data.hostUid == request.auth.uid;
+      allow delete: if false;
+
+      // Queue subcollection
+      match /queue/{songId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated()
+                      && request.resource.data.keys().hasAll(['videoId', 'title', 'addedBy', 'addedAt', 'status'])
+                      && request.resource.data.status == 'pending';
+        allow update: if isRoomHost(roomCode) || (isAuthenticated() && onlyUpvoting());
+        allow delete: if isRoomHost(roomCode);
+      }
+
+      // Roles subcollection — write-once per uid
+      match /roles/{uid} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated()
+                      && request.auth.uid == uid
+                      && !exists(/databases/$(database)/documents/rooms/$(roomCode)/roles/$(uid));
+        allow update, delete: if false;
+      }
+    }
+
+    // ── Legacy top-level roles (backwards compat) ─────────────────────────────
     match /roles/{uid} {
       allow read: if isAuthenticated() && request.auth.uid == uid;
-
       allow create: if isAuthenticated()
                     && request.auth.uid == uid
-                    && request.resource.data.keys().hasOnly(['role'])
-                    && request.resource.data.role in ['host', 'guest'];
-
+                    && !exists(/databases/$(database)/documents/roles/$(uid));
       allow update, delete: if false;
     }
 
-    // ── Queue collection ──────────────────────────────────────────────────────
-    match /queue/{songId} {
-      // Any authenticated user (guest or host) can read the queue
+    // ── Legacy top-level queue (read-only; new writes go to room subcollection) ─
+    match /queue/{docId} {
       allow read: if isAuthenticated();
-
-      // Any authenticated user can add a song — enforce required fields and
-      // that status starts as 'pending' to prevent queue manipulation on create
-      allow create: if isAuthenticated()
-                    && request.resource.data.keys().hasAll(['videoId', 'title', 'addedBy', 'addedAt', 'status'])
-                    && request.resource.data.videoId is string
-                    && request.resource.data.title is string
-                    && request.resource.data.status == 'pending';
-
-      // Only hosts can delete songs
-      allow delete: if isHost();
-
-      // Guests may only toggle their upvote; hosts may update any field
-      allow update: if isHost() || (isAuthenticated() && onlyUpvoting());
+      allow write: if false;
     }
 
-    // ── Deny everything else by default ───────────────────────────────────────
+    // ── Deny everything else ──────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }
