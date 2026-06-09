@@ -1294,6 +1294,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const isInitialLoad = useRef(true);
   const transitionTriggeredRef = useRef(false);
@@ -1785,57 +1786,73 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
             </button>
           </div>
 
-          {/* Seed (empty queue) or Search (queue has songs) */}
-          {queue.filter((s) => s.status !== 'played').length === 0 ? (
-            <div className="flex gap-2 mt-3">
+          {/* Search — always visible */}
+          <form onSubmit={handleSearch} className="flex gap-2 mt-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search and add a song..."
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={searchLoading || !searchQuery.trim()}
+              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
+            >
+              {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowImport((v) => !v)}
+              className={`px-3 py-2.5 rounded-xl transition-all border text-sm flex items-center gap-1.5 ${showImport ? 'bg-purple-600/20 border-purple-500/40 text-purple-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+              title="Import playlist"
+            >
+              <ListPlus className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleClearPlaylist}
+              type="button"
+              className="px-3 py-2.5 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 rounded-xl transition-all border border-slate-700 hover:border-red-500/30"
+              title="Clear Playlist"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </form>
+
+          {/* Import playlist — expandable */}
+          {showImport && (
+            <div className="flex gap-2 mt-2">
               <div className="flex-1 relative">
                 <ListPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   value={playlistId}
                   onChange={(e) => setPlaylistId(e.target.value)}
-                  placeholder="Paste YouTube Playlist ID or URL to seed..."
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  placeholder="Paste YouTube Playlist ID or URL..."
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-purple-500/30 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <button
-                onClick={handleSeedPlaylist}
+                onClick={async () => { await handleSeedPlaylist(); setShowImport(false); }}
                 disabled={seedingPlaylist || !playlistId.trim()}
                 className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
               >
                 {seedingPlaylist ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListPlus className="w-4 h-4" />}
-                Seed
+                Import
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowImport(false)}
+                className="px-3 py-2.5 bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-700 transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
-          ) : (
-            <form onSubmit={handleSearch} className="flex gap-2 mt-3">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search and add a song..."
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={searchLoading || !searchQuery.trim()}
-                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
-              >
-                {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                Search
-              </button>
-              <button
-                onClick={handleClearPlaylist}
-                type="button"
-                className="px-3 py-2.5 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 rounded-xl transition-all border border-slate-700 hover:border-red-500/30"
-                title="Clear Playlist"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </form>
           )}
         </div>
       </header>
