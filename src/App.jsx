@@ -1783,34 +1783,58 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
             </button>
           </div>
 
-          {/* Seed Playlist */}
-          <div className="flex gap-2 mt-3">
-            <div className="flex-1 relative">
-              <ListPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                value={playlistId}
-                onChange={(e) => setPlaylistId(e.target.value)}
-                placeholder="Paste YouTube Playlist ID or URL to seed..."
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-              />
+          {/* Seed (empty queue) or Search (queue has songs) */}
+          {queue.filter((s) => s.status !== 'played').length === 0 ? (
+            <div className="flex gap-2 mt-3">
+              <div className="flex-1 relative">
+                <ListPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={playlistId}
+                  onChange={(e) => setPlaylistId(e.target.value)}
+                  placeholder="Paste YouTube Playlist ID or URL to seed..."
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                />
+              </div>
+              <button
+                onClick={handleSeedPlaylist}
+                disabled={seedingPlaylist || !playlistId.trim()}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
+              >
+                {seedingPlaylist ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListPlus className="w-4 h-4" />}
+                Seed
+              </button>
             </div>
-            <button
-              onClick={handleSeedPlaylist}
-              disabled={seedingPlaylist || !playlistId.trim()}
-              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
-            >
-              {seedingPlaylist ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListPlus className="w-4 h-4" />}
-              Seed
-            </button>
-            <button
-              onClick={handleClearPlaylist}
-              className="px-3 py-2.5 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 rounded-xl transition-all border border-slate-700 hover:border-red-500/30"
-              title="Clear Playlist"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+          ) : (
+            <form onSubmit={handleSearch} className="flex gap-2 mt-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search and add a song..."
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={searchLoading || !searchQuery.trim()}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
+              >
+                {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                Search
+              </button>
+              <button
+                onClick={handleClearPlaylist}
+                type="button"
+                className="px-3 py-2.5 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 rounded-xl transition-all border border-slate-700 hover:border-red-500/30"
+                title="Clear Playlist"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </form>
+          )}
         </div>
       </header>
 
@@ -1873,49 +1897,26 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
           </div>
         )}
 
-        {/* Host Search */}
-        <div className="w-full max-w-2xl mt-8">
-          <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search and add a song..."
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={searchLoading || !searchQuery.trim()}
-              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
-            >
-              {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              Search
-            </button>
-          </form>
-
-          {searchResults.length > 0 && (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {searchResults.map((song) => (
-                <div key={song.videoId} className="flex items-center gap-3 bg-slate-800/60 rounded-xl p-2 border border-slate-700/50">
-                  <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">{song.title}</p>
-                    <p className="text-slate-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
-                  </div>
-                  <button
-                    onClick={() => handleAddSong(song)}
-                    className="flex-shrink-0 w-9 h-9 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center hover:scale-105 transition-transform"
-                  >
-                    <Plus className="w-5 h-5 text-white" />
-                  </button>
+        {/* Search results */}
+        {searchResults.length > 0 && (
+          <div className="w-full max-w-2xl mt-6 space-y-2 max-h-64 overflow-y-auto">
+            {searchResults.map((song) => (
+              <div key={song.videoId} className="flex items-center gap-3 bg-slate-800/60 rounded-xl p-2 border border-slate-700/50">
+                <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{song.title}</p>
+                  <p className="text-slate-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <button
+                  onClick={() => handleAddSong(song)}
+                  className="flex-shrink-0 w-9 h-9 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center hover:scale-105 transition-transform"
+                >
+                  <Plus className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
 
       <QueueSidebar
