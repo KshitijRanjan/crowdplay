@@ -13,6 +13,7 @@
     "@emailjs/browser": "^4.4.1",
     "firebase": "^12.6.0",
     "lucide-react": "^0.556.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.10.1"

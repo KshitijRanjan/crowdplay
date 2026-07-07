@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import emailjs from '@emailjs/browser';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -1758,32 +1759,41 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
           </div>
 
           {/* Room info row — guests join using these */}
-          <div className="flex items-center gap-3 bg-slate-800/60 rounded-2xl px-4 py-3 border border-slate-700/40">
-            <div className="flex-1">
-              <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Room Code</p>
-              <p className="text-white font-mono font-bold text-lg tracking-widest">{roomCode}</p>
-            </div>
-            <button
-              onClick={() => copyToClipboard(roomCode, setCodeCopied)}
-              className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
-              title="Copy room code"
-            >
-              {codeCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-            </button>
+          <div className="bg-slate-800/60 rounded-2xl px-4 py-3 border border-slate-700/40">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Room Code</p>
+                <p className="text-white font-mono font-bold text-lg tracking-widest">{roomCode}</p>
+              </div>
+              <button
+                onClick={() => copyToClipboard(roomCode, setCodeCopied)}
+                className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+                title="Copy room code"
+              >
+                {codeCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              </button>
 
-            <div className="w-px h-8 bg-slate-700" />
+              <div className="w-px h-8 bg-slate-700" />
 
-            <div className="flex-1">
-              <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
-              <p className="text-white font-mono font-bold text-lg tracking-widest">{guestPin}</p>
+              <div className="flex-1">
+                <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
+                <p className="text-white font-mono font-bold text-lg tracking-widest">{guestPin}</p>
+              </div>
+              <button
+                onClick={() => copyToClipboard(guestPin, setPinCopied)}
+                className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+                title="Copy guest PIN"
+              >
+                {pinCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              </button>
             </div>
-            <button
-              onClick={() => copyToClipboard(guestPin, setPinCopied)}
-              className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
-              title="Copy guest PIN"
-            >
-              {pinCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-            </button>
+
+            <div className="flex flex-col items-center gap-2 mt-3 pt-3 border-t border-slate-700/40">
+              <div className="bg-white p-2 rounded-xl">
+                <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={128} />
+              </div>
+              <p className="text-slate-500 text-xs">Scan to join — guests still need the PIN</p>
+            </div>
           </div>
 
           {/* Search — always visible */}
