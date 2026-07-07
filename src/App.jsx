@@ -1291,7 +1291,6 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [pinCopied, setPinCopied] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -1760,22 +1759,8 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
 
           {/* Room info row — guests join using these */}
           <div className="bg-slate-800/60 rounded-2xl px-4 py-3 border border-slate-700/40">
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Room Code</p>
-                <p className="text-white font-mono font-bold text-lg tracking-widest">{roomCode}</p>
-              </div>
-              <button
-                onClick={() => copyToClipboard(roomCode, setCodeCopied)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
-                title="Copy room code"
-              >
-                {codeCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              </button>
-
-              <div className="w-px h-8 bg-slate-700" />
-
-              <div className="flex-1">
+            <div className="flex items-center justify-center gap-3">
+              <div className="text-center">
                 <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
                 <p className="text-white font-mono font-bold text-lg tracking-widest">{guestPin}</p>
               </div>
@@ -1921,7 +1906,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
             </div>
             <h2 className="text-3xl font-bold text-white mb-4">Waiting for songs...</h2>
             <p className="text-slate-400 text-lg">
-              Tell guests: Room <span className="font-mono text-purple-400">{roomCode}</span> · PIN <span className="font-mono text-pink-400">{guestPin}</span>
+              Tell guests: PIN <span className="font-mono text-pink-400">{guestPin}</span>
             </p>
           </div>
         )}
