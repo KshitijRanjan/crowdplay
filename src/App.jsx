@@ -38,6 +38,8 @@ import {
   SkipBack,
   Trash2,
   Menu,
+  ChevronUp,
+  ChevronDown,
   X,
   ArrowUpCircle,
   UserPlus,
@@ -1291,7 +1293,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [pinCopied, setPinCopied] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -1759,42 +1761,50 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
           </div>
 
           {/* Room info row — guests join using these */}
-          <div className="bg-slate-800/60 rounded-2xl px-4 py-3 border border-slate-700/40">
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Room Code</p>
-                <p className="text-white font-mono font-bold text-lg tracking-widest">{roomCode}</p>
+          {panelExpanded ? (
+            <div className="bg-slate-800/60 rounded-2xl px-4 py-3 border border-slate-700/40">
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                <div className="bg-white p-2 rounded-xl flex-shrink-0">
+                  <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={128} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-center">
+                    <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
+                    <p className="text-white font-mono font-bold text-lg tracking-widest">{guestPin}</p>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(guestPin, setPinCopied)}
+                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+                    title="Copy guest PIN"
+                  >
+                    {pinCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => setPanelExpanded(false)}
+                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+                    title="Collapse"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
+              <p className="text-slate-500 text-xs text-center mt-2">Scan to join — guests still need the PIN</p>
+            </div>
+          ) : (
+            <div className="bg-slate-800/60 rounded-2xl px-4 py-2.5 border border-slate-700/40 flex items-center justify-between">
+              <p className="text-slate-400 text-sm flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-white inline-block" />
+                Guests can join with PIN <span className="font-mono font-bold text-pink-400">{guestPin}</span>
+              </p>
               <button
-                onClick={() => copyToClipboard(roomCode, setCodeCopied)}
+                onClick={() => setPanelExpanded(true)}
                 className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
-                title="Copy room code"
+                title="Expand"
               >
-                {codeCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              </button>
-
-              <div className="w-px h-8 bg-slate-700" />
-
-              <div className="flex-1">
-                <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
-                <p className="text-white font-mono font-bold text-lg tracking-widest">{guestPin}</p>
-              </div>
-              <button
-                onClick={() => copyToClipboard(guestPin, setPinCopied)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
-                title="Copy guest PIN"
-              >
-                {pinCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                <ChevronDown className="w-4 h-4" />
               </button>
             </div>
-
-            <div className="flex flex-col items-center gap-2 mt-3 pt-3 border-t border-slate-700/40">
-              <div className="bg-white p-2 rounded-xl">
-                <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={128} />
-              </div>
-              <p className="text-slate-500 text-xs">Scan to join — guests still need the PIN</p>
-            </div>
-          </div>
+          )}
 
           {/* Search — always visible */}
           <form onSubmit={handleSearch} className="flex gap-2 mt-3">
@@ -1916,13 +1926,8 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
           </div>
         ) : (
           <div className="text-center">
-            <div className="w-32 h-32 bg-slate-800/80 rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse">
-              <Music className="w-16 h-16 text-slate-600" />
-            </div>
-            <h2 className="text-3xl font-bold text-white mb-4">Waiting for songs...</h2>
-            <p className="text-slate-400 text-lg">
-              Tell guests: Room <span className="font-mono text-purple-400">{roomCode}</span> · PIN <span className="font-mono text-pink-400">{guestPin}</span>
-            </p>
+            <h2 className="text-xl font-bold text-white mb-2">Waiting for songs...</h2>
+            <p className="text-slate-400 text-sm">Search above to add the first one</p>
           </div>
         )}
 
