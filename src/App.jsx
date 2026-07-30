@@ -120,6 +120,10 @@ function isRoomLive(roomData) {
   return (Date.now() - last) < 12 * 60 * 60 * 1000;
 }
 
+function bumpRoomActivity(roomCode) {
+  return updateDoc(doc(db, 'rooms', roomCode), { lastActivityAt: serverTimestamp() });
+}
+
 function clearSession() {
   sessionStorage.removeItem('pinVerified');
   sessionStorage.removeItem('userRole');
@@ -1107,6 +1111,7 @@ function GuestView({ userId, roomCode }) {
         upvotes: [],
         isPriority: false,
       });
+      await bumpRoomActivity(roomCode);
       recordSongAdd();
       setToast({ message: 'Song added to queue!', type: 'success' });
       setSearchResults((prev) => prev.filter((s) => s.videoId !== song.videoId));
@@ -1123,6 +1128,7 @@ function GuestView({ userId, roomCode }) {
       await updateDoc(songRef, {
         upvotes: isVoted ? arrayRemove(userId) : arrayUnion(userId),
       });
+      await bumpRoomActivity(roomCode);
     } catch (err) {
       console.error('Upvote error:', err);
       setToast({ message: 'Failed to update vote', type: 'error' });
@@ -1405,6 +1411,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
       setCurrentSong(null);
     }
     await batch.commit();
+    await bumpRoomActivity(roomCode);
     if (!nextSong) { setProgress(0); setDuration(0); }
   }, [currentSong, roomCode]);
 
@@ -1571,6 +1578,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
       setCurrentSong(null);
     }
     await batch.commit();
+    await bumpRoomActivity(roomCode);
     setProgress(0);
     setDuration(0);
   };
@@ -1585,12 +1593,14 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
     const lastPlayed = playedSongs[playedSongs.length - 1];
     if (currentSong) await updateDoc(roomDocRef(currentSong.id), { status: 'pending' });
     await updateDoc(roomDocRef(lastPlayed.id), { status: 'playing' });
+    await bumpRoomActivity(roomCode);
   };
 
   const handleDeleteSong = async (songId) => {
     if (!window.confirm('Delete this song from queue?')) return;
     try {
       await deleteDoc(roomDocRef(songId));
+      await bumpRoomActivity(roomCode);
       setToast({ message: 'Song removed from queue', type: 'success' });
     } catch (e) {
       console.error('Delete song error:', e);
@@ -1612,6 +1622,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
         newTime = Timestamp.fromMillis(base - 1000);
       }
       await updateDoc(roomDocRef(song.id), { isPriority: true, addedAt: newTime });
+      await bumpRoomActivity(roomCode);
       setToast({ message: 'Song moved to top!', type: 'success' });
       setShowSidebar(false);
     } catch (e) {
@@ -1623,6 +1634,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
   const handleRestoreSong = async (song) => {
     try {
       await updateDoc(roomDocRef(song.id), { status: 'pending', isPriority: false, addedAt: serverTimestamp() });
+      await bumpRoomActivity(roomCode);
       setToast({ message: 'Song added back to queue!', type: 'success' });
     } catch (e) {
       console.error('Restore song error:', e);
@@ -1677,6 +1689,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
         upvotes: [],
         isPriority: false,
       });
+      await bumpRoomActivity(roomCode);
       setToast({ message: 'Song added!', type: 'success' });
       setSearchResults((prev) => prev.filter((s) => s.videoId !== song.videoId));
     } catch (e) {
