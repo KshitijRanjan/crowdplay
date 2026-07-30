@@ -2102,47 +2102,49 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
               >
                 <ChevronUp className="w-4 h-4" />
               </button>
-              <div className="flex flex-wrap items-center justify-end gap-4 pr-9">
-                <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                  <div className="bg-white p-2 rounded-xl">
-                    <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={128} />
+              <div className="flex items-center justify-between gap-4 pr-9">
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="bg-white p-2 rounded-xl flex-shrink-0">
+                    <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={96} />
                   </div>
-                  <button
-                    onClick={handleShare}
-                    className="text-xs text-indigo-300 hover:text-indigo-200 transition-colors flex items-center gap-1"
-                  >
-                    Share link
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-center">
-                    <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
-                    <p className="text-zinc-100 font-mono font-medium text-lg tracking-widest">{guestPin}</p>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(guestPin, setPinCopied)}
-                    className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
-                    title="Copy guest PIN"
-                  >
-                    {pinCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-              {guests.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-zinc-800/50">
-                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2 text-right">Guests ({guests.length})</p>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    {guests.map((g) => (
-                      <div key={g.uid} className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0" style={{
-                        backgroundColor: g.color || '#6366f1',
-                        color: g.color ? '#000' : '#fff'
-                      }}>
-                        {g.avatar ? g.avatar : '👤'}
+                  <div className="flex flex-col items-start gap-1.5">
+                    <div>
+                      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-zinc-100 font-mono font-medium text-lg tracking-widest">{guestPin}</p>
+                        <button
+                          onClick={() => copyToClipboard(guestPin, setPinCopied)}
+                          className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
+                          title="Copy guest PIN"
+                        >
+                          {pinCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
                       </div>
-                    ))}
+                    </div>
+                    <button
+                      onClick={handleShare}
+                      className="text-xs text-indigo-300 hover:text-indigo-200 transition-colors flex items-center gap-1"
+                    >
+                      Share link
+                    </button>
                   </div>
                 </div>
-              )}
+                {guests.length > 0 && (
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <p className="text-zinc-500 text-xs uppercase tracking-wider">Guests ({guests.length})</p>
+                    <div className="flex flex-wrap justify-end gap-1.5 max-w-[140px]">
+                      {guests.map((g) => (
+                        <div key={g.uid} className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0" style={{
+                          backgroundColor: g.color || '#6366f1',
+                          color: g.color ? '#000' : '#fff'
+                        }}>
+                          {g.avatar ? g.avatar : '👤'}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="bg-zinc-900/80 rounded-2xl px-4 py-2.5 border border-zinc-800/40 flex items-center justify-between gap-3">
