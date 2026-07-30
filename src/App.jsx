@@ -18,7 +18,6 @@ import {
   deleteDoc,
   getDocs,
   writeBatch,
-  Timestamp,
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
@@ -1419,7 +1418,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
             addedAt: serverTimestamp(),
             status: 'pending',
             upvotes: [],
-            isPriority: false,
           });
           allCount++;
         }
@@ -1553,15 +1551,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     );
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const songs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      songs.sort((a, b) => {
-        if (a.isPriority && !b.isPriority) return -1;
-        if (!a.isPriority && b.isPriority) return 1;
-        const vA = a.upvotes?.length || 0, vB = b.upvotes?.length || 0;
-        if (vA !== vB) return vB - vA;
-        const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
-        const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
-        return ta - tb;
-      });
       setQueue(songs);
       queueRef.current = songs;
 
@@ -1569,7 +1558,8 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       if (playing) {
         if (!currentSong || currentSong.id !== playing.id) setCurrentSong(playing);
       } else {
-        const nextSong = songs.find((s) => s.status === 'pending');
+        const pendingSorted = sortPendingQueue(songs.filter((s) => s.status === 'pending'));
+        const nextSong = pendingSorted[0];
         if (nextSong) {
           await updateDoc(doc(db, 'rooms', roomCode, 'queue', nextSong.id), { status: 'playing' });
         } else {
@@ -1652,31 +1642,9 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     }
   };
 
-  const handlePlayNext = async (song) => {
-    try {
-      const pendingSongs = queue.filter((s) => s.status === 'pending');
-      if (pendingSongs.length === 0) return;
-      const topSong = pendingSongs[0];
-      if (topSong.id === song.id) { setToast({ message: 'Song is already up next!', type: 'success' }); return; }
-      let newTime;
-      if (topSong.addedAt?.toMillis) {
-        newTime = Timestamp.fromMillis(topSong.addedAt.toMillis() - 1000);
-      } else {
-        const base = topSong.addedAt?.toMillis ? topSong.addedAt.toMillis() : Date.now();
-        newTime = Timestamp.fromMillis(base - 1000);
-      }
-      await updateDoc(roomDocRef(song.id), { isPriority: true, addedAt: newTime });
-      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
-      setToast({ message: 'Song moved to top!', type: 'success' });
-    } catch (e) {
-      console.error('Play next error:', e);
-      setToast({ message: 'Failed to prioritize song', type: 'error' });
-    }
-  };
-
   const handleRestoreSong = async (song) => {
     try {
-      await updateDoc(roomDocRef(song.id), { status: 'pending', isPriority: false, addedAt: serverTimestamp() });
+      await updateDoc(roomDocRef(song.id), { status: 'pending', manuallyPositioned: false, addedAt: serverTimestamp() });
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song added back to queue!', type: 'success' });
     } catch (e) {
@@ -1730,7 +1698,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
         addedAt: serverTimestamp(),
         status: 'pending',
         upvotes: [],
-        isPriority: false,
       });
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song added!', type: 'success' });
@@ -1802,8 +1769,11 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   };
 
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
-  const upNext = queue.filter((s) => s.status === 'pending');
-  const playedHistory = queue.filter((s) => s.status === 'played').slice().reverse();
+  const upNext = sortPendingQueue(queue.filter((s) => s.status === 'pending'));
+  const playedHistory = queue
+    .filter((s) => s.status === 'played')
+    .sort((a, b) => effectiveOrder(a) - effectiveOrder(b))
+    .reverse();
 
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
@@ -2038,13 +2008,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                       </p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => handlePlayNext(song)}
-                        className={`p-1.5 hover:bg-zinc-800 rounded-full transition-colors ${song.isPriority ? 'text-emerald-400' : 'text-zinc-400 hover:text-zinc-200'}`}
-                        title="Play Next"
-                      >
-                        <ArrowUpCircle className="w-4 h-4" />
-                      </button>
                       <button
                         onClick={() => handleDeleteSong(song.id)}
                         className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
