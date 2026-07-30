@@ -588,7 +588,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
       }
 
       const uid = auth.currentUser.uid;
-      const trimmedName = guestName.trim();
+      const trimmedName = guestName.trim() || 'Guest';
 
       const roleRef = doc(db, 'rooms', code, 'roles', uid);
       const existingRole = await getDoc(roleRef);
@@ -627,19 +627,6 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Your Name</label>
-            <input
-              type="text"
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              placeholder="e.g. Priya"
-              maxLength={30}
-              required
-              className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
             <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Room Code</label>
             <input
               type="text"
@@ -667,6 +654,18 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
             />
           </div>
 
+          <div>
+            <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Your Name <span className="normal-case text-zinc-600">(optional)</span></label>
+            <input
+              type="text"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              placeholder="e.g. Priya"
+              maxLength={30}
+              className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
           {error && (
             <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -676,7 +675,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
 
           <button
             type="submit"
-            disabled={loading || !guestName.trim() || roomCode.length !== 6 || pin.length !== 4}
+            disabled={loading || roomCode.length !== 6 || pin.length !== 4}
             className="w-full py-4 bg-indigo-500 text-zinc-100 font-medium rounded-2xl disabled:opacity-50 hover:bg-indigo-400 transition-all duration-300"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Join Party'}
