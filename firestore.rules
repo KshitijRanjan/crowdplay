@@ -20,6 +20,10 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']);
     }
 
+    function onlyBumpingActivity() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActivityAt']);
+    }
+
     // ── Host access requests ──────────────────────────────────────────────────
     // Anyone authenticated can submit or read; admin approves from client
     match /hostRequests/{email} {
@@ -35,8 +39,12 @@ service cloud.firestore {
     // ── Rooms ─────────────────────────────────────────────────────────────────
     match /rooms/{roomCode} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && resource.data.hostUid == request.auth.uid;
+      allow create: if isAuthenticated()
+                    && exists(/databases/$(database)/documents/approvedHosts/$(request.auth.token.email));
+      allow update: if isAuthenticated() && (
+                      resource.data.hostUid == request.auth.uid ||
+                      onlyBumpingActivity()
+                    );
       allow delete: if false;
 
       // Queue subcollection
