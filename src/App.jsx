@@ -1729,17 +1729,17 @@ function HostView({ roomCode, guestPin, hostUid, onEndRoom, onSwitchRoom }) {
   };
 
   const handleSwitchRoom = async (room) => {
-    if (room.id === roomCode) { setShowHistory(false); return; }
+    if (room.roomCode === roomCode) { setShowHistory(false); return; }
     if (!window.confirm('Reopening this party will end your current one. Continue?')) return;
     try {
       await updateDoc(doc(db, 'rooms', roomCode), { endedByHost: true });
-      await updateDoc(doc(db, 'rooms', room.id), {
+      await updateDoc(doc(db, 'rooms', room.roomCode), {
         lastActivityAt: serverTimestamp(),
         endedByHost: false,
       });
-      sessionStorage.setItem('roomCode', room.id);
+      sessionStorage.setItem('roomCode', room.roomCode);
       setShowHistory(false);
-      onSwitchRoom({ roomCode: room.id, guestPin: room.guestPin, roomName: room.name });
+      onSwitchRoom({ roomCode: room.roomCode, guestPin: room.guestPin, roomName: room.roomName });
     } catch (err) {
       console.error('Switch room error:', err);
       setToast({ message: 'Failed to switch parties.', type: 'error' });
