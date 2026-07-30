@@ -84,6 +84,21 @@ const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
+// Guest identity avatars (emojis) + pastel colors
+const GUEST_AVATARS = ['🤖', '👻', '🐵', '🦁', '🐴', '🦒', '👨', '👩', '🧔', '👱'];
+const GUEST_COLORS = [
+  '#FFB3D9', // pink
+  '#B3D9FF', // blue
+  '#B3FFB3', // green
+  '#FFFFB3', // yellow
+  '#D9B3FF', // purple
+  '#FFCDB3', // orange
+  '#FFB3B3', // coral
+  '#B3FFFF', // teal
+  '#D9FFB3', // lime
+  '#E6D9FF', // lavender
+];
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -101,9 +116,10 @@ function formatTime(seconds) {
 }
 
 function attributionLabel(song) {
-  if (song.addedByName) return song.addedByName;
-  if (song.addedBy === 'host') return 'Host';
-  if (song.addedBy === 'host-seed') return 'Playlist import';
+  if (song.addedByAvatar) return { type: 'avatar', value: song.addedByAvatar };
+  if (song.addedByColor) return { type: 'color', value: song.addedByColor };
+  if (song.addedBy === 'host') return { type: 'text', value: 'Host' };
+  if (song.addedBy === 'host-seed') return { type: 'text', value: 'Playlist' };
   return null;
 }
 
@@ -182,7 +198,9 @@ function clearSession() {
   sessionStorage.removeItem('userRole');
   sessionStorage.removeItem('roomCode');
   sessionStorage.removeItem('hostEmail');
-  sessionStorage.removeItem('guestName');
+  sessionStorage.removeItem('guestName'); // legacy
+  sessionStorage.removeItem('guestAvatar');
+  sessionStorage.removeItem('guestColor');
 }
 
 // ============================================================================
@@ -590,8 +608,10 @@ function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
 // ============================================================================
 function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
   const [roomCode, setRoomCode] = useState(prefilledCode.toUpperCase());
-  const [guestName, setGuestName] = useState('');
   const [pin, setPin] = useState('');
+  const [tab, setTab] = useState('avatar'); // 'avatar' or 'color'
+  const [selectedAvatar, setSelectedAvatar] = useState(null);
+  const [selectedColor, setSelectedColor] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -634,18 +654,36 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
       }
 
       const uid = auth.currentUser.uid;
-      const trimmedName = guestName.trim() || 'Guest';
+
+      // Auto-assign random if user skipped choice
+      let avatar = selectedAvatar;
+      let color = selectedColor;
+      if (!avatar && !color) {
+        if (Math.random() > 0.5) {
+          avatar = GUEST_AVATARS[Math.floor(Math.random() * GUEST_AVATARS.length)];
+        } else {
+          color = GUEST_COLORS[Math.floor(Math.random() * GUEST_COLORS.length)];
+        }
+      }
 
       const roleRef = doc(db, 'rooms', code, 'roles', uid);
       const existingRole = await getDoc(roleRef);
       if (!existingRole.exists()) {
-        await setDoc(roleRef, { role: 'guest', name: trimmedName });
+        if (avatar) {
+          await setDoc(roleRef, { role: 'guest', avatar });
+        } else {
+          await setDoc(roleRef, { role: 'guest', color });
+        }
       }
 
       sessionStorage.setItem('pinVerified', 'true');
       sessionStorage.setItem('userRole', 'guest');
       sessionStorage.setItem('roomCode', code);
-      sessionStorage.setItem('guestName', trimmedName);
+      if (avatar) {
+        sessionStorage.setItem('guestAvatar', avatar);
+      } else {
+        sessionStorage.setItem('guestColor', color);
+      }
 
       onSuccess(uid, code);
     } catch (err) {
@@ -654,6 +692,8 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
     }
     setLoading(false);
   };
+
+  const hasSelection = selectedAvatar || selectedColor;
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
@@ -665,7 +705,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
 
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Music className="w-8 h-8 text-zinc-100" />
+            <Crown className="w-8 h-8 text-zinc-100" />
           </div>
           <h2 className="text-2xl font-medium text-zinc-100 mb-2">Join a Party</h2>
           <p className="text-zinc-400 text-sm">Ask your host for the room code and PIN.</p>
@@ -701,15 +741,65 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
           </div>
 
           <div>
-            <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Your Name <span className="normal-case text-zinc-600">(optional)</span></label>
-            <input
-              type="text"
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              placeholder="e.g. Priya"
-              maxLength={30}
-              className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => { setTab('avatar'); setSelectedColor(null); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium uppercase tracking-wider transition-colors ${
+                  tab === 'avatar'
+                    ? 'bg-indigo-500 text-zinc-100'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'
+                }`}
+              >
+                Avatar
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTab('color'); setSelectedAvatar(null); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium uppercase tracking-wider transition-colors ${
+                  tab === 'color'
+                    ? 'bg-indigo-500 text-zinc-100'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'
+                }`}
+              >
+                Color
+              </button>
+            </div>
+
+            {tab === 'avatar' && (
+              <div className="grid grid-cols-5 gap-2">
+                {GUEST_AVATARS.map((avatar) => (
+                  <button
+                    key={avatar}
+                    type="button"
+                    onClick={() => setSelectedAvatar(avatar)}
+                    className={`aspect-square flex items-center justify-center text-2xl rounded-lg transition-all ${
+                      selectedAvatar === avatar
+                        ? 'ring-2 ring-indigo-500 bg-indigo-500/20'
+                        : 'bg-zinc-800 hover:bg-zinc-700'
+                    }`}
+                  >
+                    {avatar}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {tab === 'color' && (
+              <div className="grid grid-cols-5 gap-2">
+                {GUEST_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setSelectedColor(color)}
+                    className={`aspect-square rounded-lg transition-all ${
+                      selectedColor === color ? 'ring-2 ring-zinc-100' : ''
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {error && (
@@ -1011,11 +1101,21 @@ function QueueSidebar({ showSidebar, setShowSidebar, queue, userId, handleUpvote
                   className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
-                  <p className="text-zinc-400 text-xs truncate">
-                    {song.channelTitle}
-                    {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const attr = attributionLabel(song);
+                      if (!attr) return null;
+                      if (attr.type === 'avatar') {
+                        return <span className="text-xs flex-shrink-0">{attr.value}</span>;
+                      } else if (attr.type === 'color') {
+                        return <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.value }} />;
+                      } else {
+                        return <span className="text-zinc-500 text-xs flex-shrink-0">{attr.value}</span>;
+                      }
+                    })()}
+                    <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+                  </div>
+                  <p className="text-zinc-400 text-xs truncate">{song.channelTitle}</p>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -1056,7 +1156,8 @@ function QueueSidebar({ showSidebar, setShowSidebar, queue, userId, handleUpvote
 // GUEST VIEW COMPONENT
 // ============================================================================
 function GuestView({ userId, roomCode, onLeave }) {
-  const guestName = sessionStorage.getItem('guestName') || 'Guest';
+  const guestAvatar = sessionStorage.getItem('guestAvatar');
+  const guestColor = sessionStorage.getItem('guestColor');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1130,17 +1231,22 @@ function GuestView({ userId, roomCode, onLeave }) {
       return;
     }
     try {
-      await addDoc(collection(db, 'rooms', roomCode, 'queue'), {
+      const songDoc = {
         videoId: song.videoId,
         title: song.title,
         thumbnailUrl: song.thumbnailUrl,
         channelTitle: song.channelTitle,
         addedBy: userId,
-        addedByName: guestName,
         addedAt: serverTimestamp(),
         status: 'pending',
         upvotes: [],
-      });
+      };
+      if (guestAvatar) {
+        songDoc.addedByAvatar = guestAvatar;
+      } else if (guestColor) {
+        songDoc.addedByColor = guestColor;
+      }
+      await addDoc(collection(db, 'rooms', roomCode, 'queue'), songDoc);
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       recordSongAdd();
       setToast({ message: 'Song added to queue!', type: 'success' });
@@ -1283,11 +1389,21 @@ function GuestView({ userId, roomCode, onLeave }) {
                   <div className="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-400 font-medium text-sm">{index + 1}</div>
                   <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-zinc-100 font-medium truncate text-sm">{song.title}</p>
-                    <p className="text-zinc-400 text-xs truncate">
-                      {song.channelTitle}
-                      {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const attr = attributionLabel(song);
+                        if (!attr) return null;
+                        if (attr.type === 'avatar') {
+                          return <span className="text-xs flex-shrink-0">{attr.value}</span>;
+                        } else if (attr.type === 'color') {
+                          return <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.value }} />;
+                        } else {
+                          return <span className="text-zinc-500 text-xs flex-shrink-0">{attr.value}</span>;
+                        }
+                      })()}
+                      <p className="text-zinc-100 font-medium truncate text-sm">{song.title}</p>
+                    </div>
+                    <p className="text-zinc-400 text-xs truncate">{song.channelTitle}</p>
                   </div>
                 </div>
               ))}
@@ -1348,11 +1464,21 @@ function SortableUpNextRow({ song, index, handleDeleteSong }) {
       <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center text-xs text-zinc-500 font-medium">{index + 1}</span>
       <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
-        <p className="text-zinc-500 text-xs truncate">
-          {song.channelTitle}
-          {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
-        </p>
+        <div className="flex items-center gap-2">
+          {(() => {
+            const attr = attributionLabel(song);
+            if (!attr) return null;
+            if (attr.type === 'avatar') {
+              return <span className="text-xs flex-shrink-0">{attr.value}</span>;
+            } else if (attr.type === 'color') {
+              return <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.value }} />;
+            } else {
+              return <span className="text-zinc-500 text-xs flex-shrink-0">{attr.value}</span>;
+            }
+          })()}
+          <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+        </div>
+        <p className="text-zinc-500 text-xs truncate">{song.channelTitle}</p>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
         <button
@@ -2103,10 +2229,20 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                   <div key={song.id} className="flex items-center gap-3 bg-zinc-900/30 rounded-xl p-2">
                     <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0 grayscale" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-zinc-400 text-sm font-medium truncate">{song.title}</p>
-                      <p className="text-zinc-600 text-xs truncate">
-                        {attributionLabel(song) && <>Added by {attributionLabel(song)}</>}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const attr = attributionLabel(song);
+                          if (!attr) return null;
+                          if (attr.type === 'avatar') {
+                            return <span className="text-xs flex-shrink-0">{attr.value}</span>;
+                          } else if (attr.type === 'color') {
+                            return <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.value }} />;
+                          } else {
+                            return <span className="text-zinc-600 text-xs flex-shrink-0">{attr.value}</span>;
+                          }
+                        })()}
+                        <p className="text-zinc-400 text-sm font-medium truncate">{song.title}</p>
+                      </div>
                     </div>
                     <button
                       onClick={() => handleRestoreSong(song)}
