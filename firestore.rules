@@ -43,7 +43,7 @@ service cloud.firestore {
                     && exists(/databases/$(database)/documents/approvedHosts/$(request.auth.token.email));
       allow update: if isAuthenticated() && (
                       resource.data.hostUid == request.auth.uid ||
-                      onlyBumpingActivity()
+                      (onlyBumpingActivity() && exists(/databases/$(database)/documents/rooms/$(roomCode)/roles/$(request.auth.uid)))
                     );
       allow delete: if false;
 
