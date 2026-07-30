@@ -1217,8 +1217,23 @@ function GuestView({ userId, roomCode, onLeave }) {
     }
   };
 
+  const handleRestoreSong = async (song) => {
+    try {
+      await updateDoc(doc(db, 'rooms', roomCode, 'queue', song.id), { status: 'pending', manuallyPositioned: false, addedAt: serverTimestamp() });
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
+      setToast({ message: 'Song added back to queue!', type: 'success' });
+    } catch (err) {
+      console.error('Restore song error:', err);
+      setToast({ message: 'Failed to restore song.', type: 'error' });
+    }
+  };
+
   const nowPlaying = queue.find((s) => s.status === 'playing');
   const upNext = sortPendingQueue(queue.filter((s) => s.status === 'pending'));
+  const playedHistory = queue
+    .filter((s) => s.status === 'played')
+    .sort((a, b) => effectiveOrder(a) - effectiveOrder(b))
+    .reverse();
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -1364,7 +1379,7 @@ function GuestView({ userId, roomCode, onLeave }) {
               {upNext.length > 0 && (
                 <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2">Up Next</p>
               )}
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-60 overflow-y-auto">
                 {upNext.map((song, idx) => (
                   <div key={song.id} className="flex items-center gap-3 bg-zinc-900/60 rounded-lg p-2 border border-zinc-800/30">
                     <span className="text-xs text-zinc-500 w-4">{idx + 1}</span>
@@ -1392,6 +1407,38 @@ function GuestView({ userId, roomCode, onLeave }) {
                   </div>
                 ))}
               </div>
+
+              {playedHistory.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-zinc-800/50">
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2">Played</p>
+                  <div className="space-y-2">
+                    {playedHistory.map((song) => (
+                      <div key={song.id} className="flex items-center gap-3 bg-zinc-900/30 rounded-lg p-2">
+                        <img src={song.thumbnailUrl} alt={song.title} className="w-10 h-10 rounded object-cover flex-shrink-0 grayscale" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {(() => {
+                              const attr = attributionLabel(song);
+                              if (!attr) return null;
+                              if (attr.type === 'avatar') return <span className="text-xs">{attr.value}</span>;
+                              if (attr.type === 'color') return <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: attr.value }} />;
+                              return <span className="text-zinc-600 text-xs">{attr.value}</span>;
+                            })()}
+                            <p className="text-zinc-400 text-xs font-medium truncate">{song.title}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleRestoreSong(song)}
+                          className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-emerald-400 transition-colors flex-shrink-0"
+                          title="Add back to queue"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </>
@@ -2047,8 +2094,15 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
 
           {/* Room info row — guests join using these */}
           {panelExpanded ? (
-            <div className="bg-zinc-900/80 rounded-2xl px-4 py-3 border border-zinc-800/40">
-              <div className="flex flex-wrap items-center justify-end gap-4">
+            <div className="relative bg-zinc-900/80 rounded-2xl px-4 py-3 border border-zinc-800/40">
+              <button
+                onClick={() => setPanelExpanded(false)}
+                className="absolute top-2.5 right-2.5 p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
+                title="Collapse"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <div className="flex flex-wrap items-center justify-end gap-4 pr-9">
                 <div className="flex flex-col items-center gap-2 flex-shrink-0">
                   <div className="bg-white p-2 rounded-xl">
                     <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={128} />
@@ -2071,13 +2125,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                     title="Copy guest PIN"
                   >
                     {pinCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={() => setPanelExpanded(false)}
-                    className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
-                    title="Collapse"
-                  >
-                    <ChevronUp className="w-4 h-4" />
                   </button>
                 </div>
               </div>
