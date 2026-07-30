@@ -588,7 +588,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
       }
 
       const uid = auth.currentUser.uid;
-      const trimmedName = guestName.trim();
+      const trimmedName = guestName.trim() || 'Guest';
 
       const roleRef = doc(db, 'rooms', code, 'roles', uid);
       const existingRole = await getDoc(roleRef);
@@ -627,19 +627,6 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Your Name</label>
-            <input
-              type="text"
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              placeholder="e.g. Priya"
-              maxLength={30}
-              required
-              className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
             <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Room Code</label>
             <input
               type="text"
@@ -667,6 +654,18 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
             />
           </div>
 
+          <div>
+            <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Your Name <span className="normal-case text-zinc-600">(optional)</span></label>
+            <input
+              type="text"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              placeholder="e.g. Priya"
+              maxLength={30}
+              className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
           {error && (
             <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20">
               <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -676,7 +675,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
 
           <button
             type="submit"
-            disabled={loading || !guestName.trim() || roomCode.length !== 6 || pin.length !== 4}
+            disabled={loading || roomCode.length !== 6 || pin.length !== 4}
             className="w-full py-4 bg-indigo-500 text-zinc-100 font-medium rounded-2xl disabled:opacity-50 hover:bg-indigo-400 transition-all duration-300"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Join Party'}
@@ -1218,7 +1217,15 @@ function GuestView({ userId, roomCode }) {
 
         {searchResults.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4">Search Results</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-zinc-100">Search Results</h2>
+              <button
+                onClick={() => { setSearchResults([]); setSearchQuery(''); }}
+                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+              >
+                Clear
+              </button>
+            </div>
             <div className="space-y-3">
               {searchResults.map((song) => (
                 <div key={song.videoId} className="flex items-center gap-4 bg-zinc-900/80 rounded-2xl p-3 border border-zinc-800/50">
@@ -2020,7 +2027,17 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
 
         {/* Search results */}
         {searchResults.length > 0 && (
-          <div className="w-full max-w-2xl mt-6 space-y-2 max-h-64 overflow-y-auto">
+          <div className="w-full max-w-2xl mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-zinc-400">Search Results</h2>
+              <button
+                onClick={() => { setSearchResults([]); setSearchQuery(''); }}
+                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
             {searchResults.map((song) => (
               <div key={song.videoId} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 border border-zinc-800/50">
                 <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
@@ -2036,6 +2053,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 </button>
               </div>
             ))}
+            </div>
           </div>
         )}
       </main>
