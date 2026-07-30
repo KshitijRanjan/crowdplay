@@ -1332,9 +1332,9 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const [seedingPlaylist, setSeedingPlaylist] = useState(false);
   const [toast, setToast] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
+  const [queueTab, setQueueTab] = useState('upNext');
   const [pinCopied, setPinCopied] = useState(false);
-  const [panelExpanded, setPanelExpanded] = useState(true);
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -1667,7 +1667,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       await updateDoc(roomDocRef(song.id), { isPriority: true, addedAt: newTime });
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song moved to top!', type: 'success' });
-      setShowSidebar(false);
     } catch (e) {
       console.error('Play next error:', e);
       setToast({ message: 'Failed to prioritize song', type: 'error' });
@@ -1802,6 +1801,8 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   };
 
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
+  const upNext = queue.filter((s) => s.status === 'pending');
+  const playedHistory = queue.filter((s) => s.status === 'played').slice().reverse();
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col">
@@ -1836,12 +1837,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 border border-red-500/30 hover:bg-red-500/10 rounded-lg transition-colors"
               >
                 End Party
-              </button>
-              <button
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
-              >
-                <Menu className="w-5 h-5 text-zinc-100" />
               </button>
             </div>
           </div>
@@ -1972,101 +1967,164 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center p-8">
-        {currentSong ? (
-          <div className="w-full max-w-2xl">
-            <div className="relative mb-8">
-              <img
-                src={currentSong.thumbnailUrl?.replace('mqdefault', 'maxresdefault') || currentSong.thumbnailUrl}
-                alt={currentSong.title}
-                className="w-full aspect-video rounded-2xl object-cover"
-                onError={(e) => { e.target.src = currentSong.thumbnailUrl; }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent rounded-2xl" />
-              <div className="absolute bottom-6 left-6 right-6">
-                <p className="text-sm text-indigo-300 uppercase tracking-wider mb-2">Now Playing</p>
-                <h2 className="text-3xl font-medium text-zinc-100 mb-2 line-clamp-2">{currentSong.title}</h2>
-                <p className="text-lg text-zinc-300">{currentSong.channelTitle}</p>
-              </div>
-            </div>
-
+      <main className="flex-1 overflow-y-auto px-4 py-6 pb-4">
+        <div className="max-w-2xl mx-auto">
+          {/* Search results */}
+          {searchResults.length > 0 && (
             <div className="mb-6">
-              <input
-                type="range"
-                min="0"
-                max={duration || 100}
-                value={progress}
-                onChange={handleSeek}
-                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-125"
-                style={{ background: `linear-gradient(to right, #a855f7 0%, #ec4899 ${progressPercent}%, #334155 ${progressPercent}%, #334155 100%)` }}
-              />
-              <div className="flex justify-between text-sm text-zinc-400 mt-2">
-                <span>{formatTime(progress)}</span>
-                <span>{formatTime(duration)}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-center gap-6">
-              <button onClick={handlePrevious} className="w-14 h-14 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-full flex items-center justify-center transition-colors" title="Previous">
-                <SkipBack className="w-6 h-6" />
-              </button>
-              <button onClick={togglePlay} className="w-16 h-16 bg-zinc-100 hover:bg-white text-zinc-950 rounded-full flex items-center justify-center transition-colors" title={isPlaying ? 'Pause' : 'Play'}>
-                {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current translate-x-1" />}
-              </button>
-              <button onClick={handleSkip} className="w-14 h-14 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-full flex items-center justify-center transition-colors" title="Skip">
-                <SkipForward className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center">
-            <h2 className="text-xl font-medium text-zinc-100 mb-2">Waiting for songs...</h2>
-            <p className="text-zinc-400 text-sm">Search above to add the first one</p>
-          </div>
-        )}
-
-        {/* Search results */}
-        {searchResults.length > 0 && (
-          <div className="w-full max-w-2xl mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-zinc-400">Search Results</h2>
-              <button
-                onClick={() => { setSearchResults([]); setSearchQuery(''); }}
-                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
-              >
-                Clear
-              </button>
-            </div>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-            {searchResults.map((song) => (
-              <div key={song.videoId} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 border border-zinc-800/50">
-                <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
-                  <p className="text-zinc-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
-                </div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-zinc-400">Search Results</h2>
                 <button
-                  onClick={() => handleAddSong(song)}
-                  className="flex-shrink-0 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center transition-transform"
+                  onClick={() => { setSearchResults([]); setSearchQuery(''); }}
+                  className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
                 >
-                  <Plus className="w-5 h-5 text-zinc-100" />
+                  Clear
                 </button>
               </div>
-            ))}
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {searchResults.map((song) => (
+                  <div key={song.videoId} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 border border-zinc-800/50">
+                    <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+                      <p className="text-zinc-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
+                    </div>
+                    <button
+                      onClick={() => handleAddSong(song)}
+                      className="flex-shrink-0 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center transition-transform"
+                    >
+                      <Plus className="w-5 h-5 text-zinc-100" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
+
+          {/* Up Next / Played tabs */}
+          <div className="flex gap-1 mb-4">
+            <button
+              onClick={() => setQueueTab('upNext')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${queueTab === 'upNext' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Up Next ({upNext.length})
+            </button>
+            <button
+              onClick={() => setQueueTab('played')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${queueTab === 'played' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Played ({playedHistory.length})
+            </button>
           </div>
-        )}
+
+          {queueTab === 'upNext' ? (
+            upNext.length === 0 ? (
+              <div className="text-center py-16">
+                <h2 className="text-lg font-medium text-zinc-100 mb-2">Queue is empty</h2>
+                <p className="text-zinc-400 text-sm">Search above to add the first song</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {upNext.map((song, index) => (
+                  <div key={song.id} className="flex items-center gap-3 bg-zinc-900/60 rounded-xl p-2 border border-zinc-800/50 group">
+                    <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center text-xs text-zinc-500 font-medium">{index + 1}</span>
+                    <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+                      <p className="text-zinc-500 text-xs truncate">
+                        {song.channelTitle}
+                        {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => handlePlayNext(song)}
+                        className={`p-1.5 hover:bg-zinc-800 rounded-full transition-colors ${song.isPriority ? 'text-emerald-400' : 'text-zinc-400 hover:text-zinc-200'}`}
+                        title="Play Next"
+                      >
+                        <ArrowUpCircle className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSong(song.id)}
+                        className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : (
+            playedHistory.length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-zinc-500 text-sm">No songs played yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {playedHistory.map((song) => (
+                  <div key={song.id} className="flex items-center gap-3 bg-zinc-900/30 rounded-xl p-2">
+                    <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0 grayscale" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-zinc-400 text-sm font-medium truncate">{song.title}</p>
+                      <p className="text-zinc-600 text-xs truncate">
+                        {attributionLabel(song) && <>Added by {attributionLabel(song)}</>}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleRestoreSong(song)}
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-emerald-400 transition-colors flex-shrink-0"
+                      title="Add back to queue"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
       </main>
 
-      <QueueSidebar
-        showSidebar={showSidebar}
-        setShowSidebar={setShowSidebar}
-        queue={queue}
-        handlePlayNext={handlePlayNext}
-        handleDeleteSong={handleDeleteSong}
-        handleRestoreSong={handleRestoreSong}
-        isHost={true}
-      />
+      {/* Persistent player bar */}
+      {currentSong && (
+        <div className="border-t border-zinc-800/50 bg-zinc-950/95 px-4 py-2.5">
+          <div className="max-w-2xl mx-auto">
+            <input
+              type="range"
+              min="0"
+              max={duration || 100}
+              value={progress}
+              onChange={handleSeek}
+              className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer mb-2 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-zinc-100 [&::-webkit-slider-thumb]:rounded-full"
+              style={{ background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${progressPercent}%, #27272a ${progressPercent}%, #27272a 100%)` }}
+            />
+            <div className="flex items-center gap-3">
+              <img
+                src={currentSong.thumbnailUrl}
+                alt={currentSong.title}
+                className="w-11 h-11 rounded-lg object-cover flex-shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-zinc-100 text-sm font-medium truncate">{currentSong.title}</p>
+                <p className="text-zinc-500 text-xs truncate">{currentSong.channelTitle}</p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <button onClick={handlePrevious} className="text-zinc-400 hover:text-zinc-100 transition-colors" title="Previous">
+                  <SkipBack className="w-5 h-5" />
+                </button>
+                <button onClick={togglePlay} className="w-9 h-9 bg-zinc-100 hover:bg-white text-zinc-950 rounded-full flex items-center justify-center transition-colors" title={isPlaying ? 'Pause' : 'Play'}>
+                  {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current translate-x-0.5" />}
+                </button>
+                <button onClick={handleSkip} className="text-zinc-400 hover:text-zinc-100 transition-colors" title="Skip">
+                  <SkipForward className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
