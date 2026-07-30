@@ -108,7 +108,7 @@ function attributionLabel(song) {
 
 function effectiveOrder(song) {
   if (song.manuallyPositioned) return song.order;
-  return song.addedAt?.toMillis ? song.addedAt.toMillis() : (song.addedAt?.seconds * 1000 || 0);
+  return song.addedAt?.toMillis ? song.addedAt.toMillis() : (song.addedAt?.seconds ? song.addedAt.seconds * 1000 : Date.now());
 }
 
 function sortPendingQueue(songs) {
@@ -140,9 +140,10 @@ function sortPendingQueue(songs) {
 }
 
 function computeDropOrder(prevNeighbor, nextNeighbor) {
-  const GAP = 60000;
+  const GAP = 60000; // 1 minute, in ms — normal spacing between adjacent midpoint inserts
+  const TAIL_GAP = 24 * 60 * 60 * 1000; // 24 hours, in ms — used only when dropping at the very end, so the anchor stays ahead of real addedAt values for the life of the party
   const prevOrder = prevNeighbor ? effectiveOrder(prevNeighbor) : (nextNeighbor ? effectiveOrder(nextNeighbor) - GAP * 2 : Date.now());
-  const nextOrder = nextNeighbor ? effectiveOrder(nextNeighbor) : prevOrder + GAP * 2;
+  const nextOrder = nextNeighbor ? effectiveOrder(nextNeighbor) : prevOrder + TAIL_GAP;
   return (prevOrder + nextOrder) / 2;
 }
 
