@@ -48,6 +48,7 @@ import {
   UserPlus,
   LogIn,
   LogOut,
+  Home,
   ChevronLeft,
   Shield,
   Copy,
@@ -214,7 +215,7 @@ function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
           <div className="w-24 h-24 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
             <Music className="w-12 h-12 text-zinc-100" />
           </div>
-          <h1 className="text-4xl font-medium text-zinc-100 mb-2">Party Playlist</h1>
+          <h1 className="text-4xl font-medium text-zinc-100 mb-2">CrowdPlay</h1>
           <p className="text-zinc-400">Shared music for your crew</p>
         </div>
 
@@ -1176,7 +1177,7 @@ function GuestView({ userId, roomCode, onLeave }) {
               <Music className="w-5 h-5 text-zinc-100" />
             </div>
             <div>
-              <h1 className="text-xl font-medium text-zinc-100">Party Playlist</h1>
+              <h1 className="text-xl font-medium text-zinc-100">CrowdPlay</h1>
               <p className="text-zinc-500 text-xs font-mono">{roomCode}</p>
             </div>
           </div>
@@ -1397,11 +1398,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   );
-  const transitionTriggeredRef = useRef(false);
-
-  useEffect(() => {
-    transitionTriggeredRef.current = false;
-  }, [currentSong]);
 
   const roomQueueRef = () => collection(db, 'rooms', roomCode, 'queue');
   const roomDocRef = (id) => doc(db, 'rooms', roomCode, 'queue', id);
@@ -1514,13 +1510,24 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   }, [currentSong, roomCode]);
 
   const onStateChangeRef = useRef(null);
+  const onErrorRef = useRef(null);
 
   const handlePlayerStateChange = useCallback((event) => {
     if (event.data === 0) handleSongEnded();
     setIsPlaying(event.data === 1);
   }, [handleSongEnded]);
 
+  const handlePlayerError = useCallback((event) => {
+    // 2 = invalid id, 5 = HTML5 player error, 100 = video not found/removed,
+    // 101/150 = embedding disabled by the uploader. Player just sits stuck
+    // with no other signal, so surface it and skip to the next song.
+    console.error('YouTube player error:', event.data, 'song:', currentSong?.title);
+    setToast({ message: `Couldn't play "${currentSong?.title || 'this song'}" — skipping.`, type: 'error' });
+    handleSongEnded();
+  }, [currentSong, handleSongEnded]);
+
   useEffect(() => { onStateChangeRef.current = handlePlayerStateChange; }, [handlePlayerStateChange]);
+  useEffect(() => { onErrorRef.current = handlePlayerError; }, [handlePlayerError]);
 
   useEffect(() => {
     if (!('wakeLock' in navigator)) return;
@@ -1545,7 +1552,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     if (!('mediaSession' in navigator) || !currentSong) return;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentSong.title,
-      artist: currentSong.channelTitle || 'Party Playlist',
+      artist: currentSong.channelTitle || 'CrowdPlay',
       artwork: currentSong.thumbnailUrl ? [{ src: currentSong.thumbnailUrl, sizes: '480x360', type: 'image/jpeg' }] : [],
     });
     navigator.mediaSession.setActionHandler('play', () => playerRef.current?.playVideo());
@@ -1565,6 +1572,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0 },
       events: {
         onStateChange: (event) => { if (onStateChangeRef.current) onStateChangeRef.current(event); },
+        onError: (event) => { if (onErrorRef.current) onErrorRef.current(event); },
         onReady: () => setPlayerInstanceReady(true),
       },
     });
@@ -1587,7 +1595,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     if (isInitialLoad.current) {
       let startSeconds = 0;
       try {
-        const saved = localStorage.getItem('party_playlist_progress');
+        const saved = localStorage.getItem('crowdplay_progress');
         if (saved) {
           const { videoId, timestamp, savedAt } = JSON.parse(saved);
           if (videoId === currentSong.videoId && (Date.now() - savedAt < 24 * 60 * 60 * 1000)) startSeconds = timestamp;
@@ -1637,20 +1645,16 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
             setProgress(current);
             setDuration(total);
             if (currentSong) {
-              localStorage.setItem('party_playlist_progress', JSON.stringify({ videoId: currentSong.videoId, timestamp: current, savedAt: Date.now() }));
-            }
-            if (total - current < 2 && !transitionTriggeredRef.current && isPlaying) {
-              transitionTriggeredRef.current = true;
-              handleSongEnded();
+              localStorage.setItem('crowdplay_progress', JSON.stringify({ videoId: currentSong.videoId, timestamp: current, savedAt: Date.now() }));
             }
           }
         } catch (e) { void e; }
       }
     }, 250);
     return () => clearInterval(interval);
-  }, [playerReady, isPlaying, currentSong, handleSongEnded]);
+  }, [playerReady, currentSong]);
 
-  const handleSeek = (e) => {
+  const handleSeekCommit = (e) => {
     const time = parseFloat(e.target.value);
     setProgress(time);
     if (playerRef.current?.seekTo) playerRef.current.seekTo(time, true);
@@ -1803,7 +1807,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     const shareUrl = `${window.location.origin}/join/${roomCode}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Join "${roomName || roomCode}" on Party Playlist`, url: shareUrl });
+        await navigator.share({ title: `Join "${roomName || roomCode}" on CrowdPlay`, url: shareUrl });
       } catch (e) {
         if (e.name !== 'AbortError') console.error('Share error:', e);
       }
@@ -1865,17 +1869,17 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 <Crown className="w-5 h-5 text-zinc-100" />
               </div>
               <div>
-                <h1 className="text-xl font-medium text-zinc-100">Party Playlist</h1>
+                <h1 className="text-xl font-medium text-zinc-100">CrowdPlay</h1>
                 <p className="text-zinc-400 text-xs">Host View</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowHistory(true)}
-                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 border border-zinc-700/50 hover:bg-zinc-800/30 rounded-lg transition-colors flex items-center gap-1.5"
+                className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
+                title="Home"
               >
-                <Clock className="w-3.5 h-3.5" />
-                History
+                <Home className="w-5 h-5" />
               </button>
               <button
                 onClick={handleEndRoom}
@@ -2128,7 +2132,9 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
               min="0"
               max={duration || 100}
               value={progress}
-              onChange={handleSeek}
+              onChange={(e) => setProgress(parseFloat(e.target.value))}
+              onMouseUp={handleSeekCommit}
+              onTouchEnd={handleSeekCommit}
               className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer mb-2 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-zinc-100 [&::-webkit-slider-thumb]:rounded-full"
               style={{ background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${progressPercent}%, #27272a ${progressPercent}%, #27272a 100%)` }}
             />

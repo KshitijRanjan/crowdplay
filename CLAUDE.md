@@ -1,4 +1,4 @@
-# Party Playlist — Claude Context
+# CrowdPlay — Claude Context
 
 > For file locations, consult [index.md](index.md) before exploring the codebase.
 
@@ -8,8 +8,8 @@ Makes sharing music playlists easier: host plays music through the app, guests s
 
 **Pivoting** (as of 2026-07-30) from a single 2-day wedding-event tool to a full-fledged app for regular, recurring use by any group — not tied to one event date. See `context.docx` for full product context and `PROGRESS.md` for what this pivot still needs.
 
-**Live app:** https://party-playlist-seven.vercel.app/
-**GitHub:** https://github.com/KshitijRanjan/party-playlist
+**Live app:** https://crowdplay-host.vercel.app/
+**GitHub:** https://github.com/KshitijRanjan/crowdplay
 
 ---
 

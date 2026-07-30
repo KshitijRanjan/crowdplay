@@ -1,8 +1,8 @@
-# Party Playlist
+# CrowdPlay
 
 A collaborative, real-time music queue for weddings and parties. Guests join with a PIN, search YouTube, and add songs to a shared queue. The host has full playback control and queue management — all synced live across every device.
 
-**Live Demo:** https://party-playlist-seven.vercel.app/
+**Live Demo:** https://crowdplay-host.vercel.app/
 
 ---
 
@@ -54,8 +54,8 @@ Before setting up, you need accounts and credentials from three services:
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/KshitijRanjan/party-playlist.git
-cd party-playlist
+git clone https://github.com/KshitijRanjan/crowdplay.git
+cd crowdplay
 ```
 
 ### 2. Install dependencies
@@ -157,7 +157,7 @@ This prevents the key from being used if someone extracts it from the browser bu
 ## Project Structure
 
 ```
-party-playlist/
+crowdplay/
 ├── src/
 │   ├── App.jsx              # All components and app logic
 │   ├── ErrorBoundary.jsx    # React error boundary
