@@ -1,24 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Dark purple background -->
-  <rect width="512" height="512" rx="80" fill="#1a0533"/>
-  <!-- Subtle gradient overlay -->
-  <rect width="512" height="512" rx="80" fill="url(#grad)" opacity="0.4"/>
-  <defs>
-    <radialGradient id="grad" cx="30%" cy="30%" r="70%">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#1a0533"/>
-    </radialGradient>
-  </defs>
-  <!-- Music note icon (centered) -->
-  <!-- Note head -->
-  <ellipse cx="194" cy="352" rx="52" ry="38" fill="white" opacity="0.95" transform="rotate(-15 194 352)"/>
-  <!-- Note stem -->
-  <rect x="238" y="164" width="22" height="196" rx="11" fill="white" opacity="0.95"/>
-  <!-- Note flag / beam to second note -->
-  <rect x="238" y="164" width="136" height="22" rx="11" fill="white" opacity="0.95"/>
-  <rect x="238" y="210" width="136" height="22" rx="11" fill="white" opacity="0.95"/>
-  <!-- Second note head -->
-  <ellipse cx="322" cy="320" rx="52" ry="38" fill="white" opacity="0.95" transform="rotate(-15 322 320)"/>
-  <!-- Second note stem -->
-  <rect x="366" y="132" width="22" height="196" rx="11" fill="white" opacity="0.95"/>
+  <circle cx="256" cy="256" r="200" fill="#6366f1"/>
+  <g transform="translate(148 148) scale(9)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/>
+    <path d="M5 21h14"/>
+  </g>
 </svg>
