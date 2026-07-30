@@ -25,26 +25,32 @@ Pivoting from a single 2-day wedding-event tool to a regular-use, recurring app 
 
 ## App.jsx component map (all in one file)
 
+Line numbers drift as the file changes — re-run `grep -n "^function " src/App.jsx` rather than trusting these blindly, but they were accurate as of this row's last edit.
+
 | Component | Line | Role |
 |-----------|------|------|
-| `Toast` | 132 | Notification UI |
-| `LandingPage` | 151 | Entry screen — host/join/request-access/admin |
-| `RequestAccessForm` | 204 | Non-host requests host access via email |
-| `RequestSentScreen` | 321 | Confirmation after request |
-| `HostLoginForm` | 346 | Host PIN + email login |
-| `CreateRoomForm` | 452 | Host creates a room/party |
-| `GuestJoinForm` | 544 | Guest joins via room code — **auth-before-read fixed here** |
-| `AdminFlow` | 672 | Admin panel: approve/deny host requests |
-| `QueueSidebar` | 905 | Upcoming/played song list |
-| `GuestView` | 1025 | Guest-facing queue + search UI |
-| `HostView` | 1282 | Host playback controls + queue management |
-| `App` | 1976 | Top-level router/state |
+| `Toast` | 190 | Notification UI |
+| `LandingPage` | 209 | Entry screen — host/join/request-access/admin |
+| `RequestAccessForm` | 262 | Host requests access via "Continue with Google" |
+| `RequestSentScreen` | 364 | Confirmation after request |
+| `HostLoginForm` | 389 | Host login via "Continue with Google" (no password, ever) |
+| `CreateRoomForm` | 487 | Host creates a room — name + 4-digit guest PIN |
+| `GuestJoinForm` | 590 | Guest joins via room code + PIN + optional name |
+| `AdminFlow` | 737 | Admin panel: approve/deny host requests |
+| `QueueSidebar` | 970 | Guest-only slide-out: upcoming + played songs, upvote |
+| `GuestView` | 1057 | Guest-facing queue + search UI |
+| `SortableUpNextRow` | 1324 | Single draggable row used by HostView's Up Next tab (`@dnd-kit`) |
+| `HostView` | 1372 | Host screen: search, Up Next/Played tabs, drag-to-reorder, bottom player bar |
+| `HostDashboard` | 2188 | Post-login screen: start new party + room history/reopen |
+| `App` | 2276 | Top-level router/state |
+
+Key utility functions (all above the component definitions): `sortPendingQueue` — the anchor/segment merge sort shared by every queue display; `isRoomLive` — computed room-archive check; `bumpRoomActivity` — writes `lastActivityAt`.
 
 ## Firestore collections
 
 | Collection | Purpose |
 |------------|---------|
-| `rooms/{roomCode}` | One doc per party; `queue/` and `roles/` subcollections |
+| `rooms/{roomCode}` | One doc per party; `queue/` and `roles/` subcollections. See CLAUDE.md for full field list. |
 | `hostRequests/{email}` | Pending requests for host access |
-| `approvedHosts/{email}` | Emails approved to host |
-| `roles/{uid}` (legacy top-level) | Backwards-compat role lookup |
+| `approvedHosts/{email}` | Emails approved to host — gates both login and (via Firestore rules) room creation |
+| `roles/{uid}` (legacy top-level, `firestore.rules:71`) | Backwards-compat only — current code writes to `rooms/{roomCode}/roles/{uid}`, not here |

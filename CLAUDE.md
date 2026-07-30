@@ -22,7 +22,8 @@ Makes sharing music playlists easier: host plays music through the app, guests s
 | Icons | Lucide React |
 | Routing | React Router DOM 7 |
 | Database | Firebase Firestore (real-time) |
-| Auth | Firebase Anonymous Auth + PIN gating |
+| Auth | Firebase Auth — Google Sign-In for hosts, Anonymous for guests |
+| Drag-and-drop | `@dnd-kit/core` + `@dnd-kit/sortable` (host queue reordering) |
 | Media | YouTube Data API v3 + YouTube IFrame API |
 | Deployment | Vercel (SPA rewrites via vercel.json) |
 
@@ -33,21 +34,49 @@ No backend service — Firebase is the only server-side dependency (free tier, n
 ## Firestore Data Model
 
 ```
-rooms/{roomCode}                          # one doc per party
-rooms/{roomCode}/queue/{docId}            # { videoId, title, thumbnailUrl, channelTitle,
-                                           #   addedBy, addedAt, status, upvotes[], isPriority }
-rooms/{roomCode}/roles/{uid}              # { role: "host" | "guest" } — write-once
-hostRequests/{email}                      # pending host-access requests
-approvedHosts/{email}                     # emails approved to host
+rooms/{roomCode}
+  hostUid, hostEmail, guestPin, name        # name = host-given room name
+  createdAt, lastActivityAt                  # lastActivityAt drives rolling 12h archive
+  endedByHost: boolean                       # host "End Party" hard-stop, independent of the timer
+
+rooms/{roomCode}/queue/{docId}
+  videoId, title, thumbnailUrl, channelTitle
+  addedBy                                    # uid, or 'host' / 'host-seed'
+  addedByName                                # guest's display name at add-time (omitted for host/seed — UI falls back)
+  addedAt, status: 'pending' | 'playing' | 'played'
+  upvotes: string[]                          # array of guest uids
+  order: number                              # only meaningful when manuallyPositioned
+  manuallyPositioned: boolean                # true once a host has dragged this song
+
+rooms/{roomCode}/roles/{uid}
+  role: 'host' | 'guest'
+  name: string                               # guest display name, optional, defaults to 'Guest' — write-once
+
+hostRequests/{email}                         # pending host-access requests
+approvedHosts/{email}                        # emails approved to host
 ```
-Client-side queue sort: `isPriority → upvote count → addedAt (FIFO)`.
+
+**Client-side queue sort** (`sortPendingQueue`, shared by GuestView/HostView/QueueSidebar):
+anchored songs (`manuallyPositioned: true`) sort by `order`; unanchored songs sort by
+upvote count then add-time, and are placed into whichever segment their add-time falls
+into relative to the anchors — so a manual drag pins a song in place, and later upvotes
+on other songs can never cross past it, only reorder within their own segment.
 
 ## Auth Flow
 
-1. User enters 4-digit PIN → validated client-side against `VITE_HOST_PIN`/`VITE_GUEST_PIN`
-2. `signInAnonymously(auth)` runs **before any Firestore read** (rules require `isAuthenticated()` — see `firestore.rules:37`)
-3. Role written once to `roles/{uid}`
-4. PIN verification cached in sessionStorage for refresh
+**Host:** `RequestAccessForm`/`HostLoginForm` call `signInWithPopup(auth, googleProvider)` —
+Firebase Auth's Google provider, real per-account identity, stable UID across devices.
+`approvedHosts/{email}` (keyed by the Google-verified email) gates actual host access;
+having a Google account alone only proves identity, not approval. No password anywhere.
+
+**Guest:** unchanged — `signInAnonymously(auth)` runs **before any Firestore read**
+(rules require `isAuthenticated()`), gated by room code + 4-digit PIN
+(`VITE_HOST_PIN`/`VITE_GUEST_PIN` env vars are gone; PINs are per-room, host-chosen,
+stored on the room doc as `guestPin`).
+
+Session (host or guest) is cached in `sessionStorage` (`pinVerified`, `userRole`,
+`roomCode`, `hostEmail`/`guestName`) so a refresh restores the right view without
+re-authenticating, as long as the room is still live (`isRoomLive()`).
 
 ---
 
