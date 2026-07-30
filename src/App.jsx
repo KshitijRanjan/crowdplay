@@ -1974,6 +1974,104 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
 }
 
 // ============================================================================
+// HOST DASHBOARD (create new / history)
+// ============================================================================
+function HostDashboard({ hostUid, onCreateNew, onOpenRoom }) {
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const q = query(collection(db, 'rooms'), where('hostUid', '==', hostUid));
+    getDocs(q).then((snap) => {
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => {
+          const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return tb - ta;
+        });
+      setRooms(list);
+      setLoading(false);
+    }).catch((err) => {
+      console.error('Load room history error:', err);
+      setLoading(false);
+    });
+  }, [hostUid]);
+
+  const handleReopen = async (room) => {
+    try {
+      await updateDoc(doc(db, 'rooms', room.id), {
+        lastActivityAt: serverTimestamp(),
+        endedByHost: false,
+      });
+      sessionStorage.setItem('roomCode', room.id);
+      onOpenRoom({ roomCode: room.id, guestPin: room.guestPin, roomName: room.name });
+    } catch (err) {
+      console.error('Reopen room error:', err);
+      setToast({ message: 'Failed to reopen party.', type: 'error' });
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+      <div className="max-w-lg mx-auto py-10">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Crown className="w-10 h-10 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Welcome back</h1>
+        </div>
+
+        <button
+          onClick={onCreateNew}
+          className="w-full py-5 mb-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xl rounded-2xl hover:from-purple-500 hover:to-pink-500 transition-all duration-300 shadow-lg shadow-purple-500/30 flex items-center justify-center gap-3"
+        >
+          <Music className="w-6 h-6" />
+          Start New Party
+        </button>
+
+        <h2 className="text-slate-400 font-semibold text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Clock className="w-4 h-4" />
+          History
+        </h2>
+
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+          </div>
+        ) : rooms.length === 0 ? (
+          <p className="text-slate-500 text-sm italic">No past parties yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {rooms.map((room) => {
+              const live = isRoomLive(room);
+              return (
+                <button
+                  key={room.id}
+                  onClick={() => handleReopen(room)}
+                  className="w-full text-left bg-slate-800/60 rounded-2xl p-4 border border-slate-700/50 hover:border-purple-500/40 transition-colors flex items-center justify-between gap-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-white font-medium truncate">{room.name || room.id}</p>
+                    <p className="text-slate-500 text-xs font-mono mt-0.5">{room.id}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 text-xs rounded-full border flex-shrink-0 ${live ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-slate-700/50 text-slate-400 border-slate-600/50'}`}>
+                    {live ? 'Live' : 'Archived'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
+// ============================================================================
 // MAIN APP COMPONENT
 // ============================================================================
 function App() {
@@ -2006,18 +2104,31 @@ function App() {
             const roomDoc = await getDoc(doc(db, 'rooms', savedRoomCode));
             if (roomDoc.exists() && isRoomLive(roomDoc.data())) {
               const rd = roomDoc.data();
-              setCurrentRoom({ roomCode: savedRoomCode, guestPin: rd.guestPin });
+              setHostUid(user.uid);
+              setHostEmail(rd.hostEmail);
+              setCurrentRoom({ roomCode: savedRoomCode, guestPin: rd.guestPin, roomName: rd.name });
               setView('host-view');
               return;
             }
           } catch (e) {
             console.error('Session restore error:', e);
           }
-          clearSession();
-          setView('landing');
+          setHostUid(user.uid);
+          setHostEmail(sessionStorage.getItem('hostEmail') || '');
+          setView('host-dashboard');
         } else if (userRole === 'guest' && savedRoomCode) {
-          setCurrentRoom({ roomCode: savedRoomCode });
-          setView('guest-view');
+          try {
+            const roomDoc = await getDoc(doc(db, 'rooms', savedRoomCode));
+            if (roomDoc.exists() && isRoomLive(roomDoc.data())) {
+              setCurrentRoom({ roomCode: savedRoomCode });
+              setView('guest-view');
+              return;
+            }
+          } catch (e) {
+            console.error('Guest session restore error:', e);
+          }
+          clearSession();
+          setView(prefilledCode ? 'guest-join' : 'landing');
         } else {
           setView(prefilledCode ? 'guest-join' : 'landing');
         }
@@ -2035,7 +2146,7 @@ function App() {
     setHostEmail(email);
     setUserId(uid);
 
-    // Check for existing active room
+    // Check for existing live room
     try {
       const existingQuery = query(
         collection(db, 'rooms'),
@@ -2043,21 +2154,21 @@ function App() {
         where('endedByHost', '==', false)
       );
       const snap = await getDocs(existingQuery);
-      const activeRoom = snap.docs.find((d) => isRoomLive(d.data()));
+      const liveRoom = snap.docs.find((d) => isRoomLive(d.data()));
 
-      if (activeRoom) {
-        const rd = activeRoom.data();
-        const roomCode = activeRoom.id;
+      if (liveRoom) {
+        const rd = liveRoom.data();
+        const roomCode = liveRoom.id;
         sessionStorage.setItem('roomCode', roomCode);
-        setCurrentRoom({ roomCode, guestPin: rd.guestPin });
+        setCurrentRoom({ roomCode, guestPin: rd.guestPin, roomName: rd.name });
         setView('host-view');
         return;
       }
     } catch (e) {
-      console.error('Active room check error:', e);
+      console.error('Live room check error:', e);
     }
 
-    setView('create-room');
+    setView('host-dashboard');
   };
 
   const handleRoomCreated = (room) => {
@@ -2119,6 +2230,16 @@ function App() {
       <HostLoginForm
         onBack={() => setView('landing')}
         onSuccess={handleHostLogin}
+      />
+    );
+  }
+
+  if (view === 'host-dashboard') {
+    return (
+      <HostDashboard
+        hostUid={hostUid}
+        onCreateNew={() => setView('create-room')}
+        onOpenRoom={(room) => { setCurrentRoom(room); setView('host-view'); }}
       />
     );
   }
