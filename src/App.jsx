@@ -557,6 +557,10 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
     const code = roomCode.toUpperCase().trim();
 
     try {
+      if (sessionStorage.getItem('userRole') === 'host') {
+        clearSession();
+      }
+
       // Auth required before any Firestore read
       await signInAnonymously(auth);
 
@@ -1139,7 +1143,7 @@ function GuestView({ userId, roomCode }) {
         upvotes: [],
         isPriority: false,
       });
-      await bumpRoomActivity(roomCode);
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       recordSongAdd();
       setToast({ message: 'Song added to queue!', type: 'success' });
       setSearchResults((prev) => prev.filter((s) => s.videoId !== song.videoId));
@@ -1156,7 +1160,7 @@ function GuestView({ userId, roomCode }) {
       await updateDoc(songRef, {
         upvotes: isVoted ? arrayRemove(userId) : arrayUnion(userId),
       });
-      await bumpRoomActivity(roomCode);
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
     } catch (err) {
       console.error('Upvote error:', err);
       setToast({ message: 'Failed to update vote', type: 'error' });
@@ -1443,7 +1447,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       setCurrentSong(null);
     }
     await batch.commit();
-    await bumpRoomActivity(roomCode);
+    bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
     if (!nextSong) { setProgress(0); setDuration(0); }
   }, [currentSong, roomCode]);
 
@@ -1610,7 +1614,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       setCurrentSong(null);
     }
     await batch.commit();
-    await bumpRoomActivity(roomCode);
+    bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
     setProgress(0);
     setDuration(0);
   };
@@ -1625,14 +1629,14 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     const lastPlayed = playedSongs[playedSongs.length - 1];
     if (currentSong) await updateDoc(roomDocRef(currentSong.id), { status: 'pending' });
     await updateDoc(roomDocRef(lastPlayed.id), { status: 'playing' });
-    await bumpRoomActivity(roomCode);
+    bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
   };
 
   const handleDeleteSong = async (songId) => {
     if (!window.confirm('Delete this song from queue?')) return;
     try {
       await deleteDoc(roomDocRef(songId));
-      await bumpRoomActivity(roomCode);
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song removed from queue', type: 'success' });
     } catch (e) {
       console.error('Delete song error:', e);
@@ -1654,7 +1658,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
         newTime = Timestamp.fromMillis(base - 1000);
       }
       await updateDoc(roomDocRef(song.id), { isPriority: true, addedAt: newTime });
-      await bumpRoomActivity(roomCode);
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song moved to top!', type: 'success' });
       setShowSidebar(false);
     } catch (e) {
@@ -1666,7 +1670,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const handleRestoreSong = async (song) => {
     try {
       await updateDoc(roomDocRef(song.id), { status: 'pending', isPriority: false, addedAt: serverTimestamp() });
-      await bumpRoomActivity(roomCode);
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song added back to queue!', type: 'success' });
     } catch (e) {
       console.error('Restore song error:', e);
@@ -1721,7 +1725,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
         upvotes: [],
         isPriority: false,
       });
-      await bumpRoomActivity(roomCode);
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song added!', type: 'success' });
       setSearchResults((prev) => prev.filter((s) => s.videoId !== song.videoId));
     } catch (e) {
@@ -1751,7 +1755,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     const shareUrl = `${window.location.origin}/join/${roomCode}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Join "${roomName}" on Party Playlist`, url: shareUrl });
+        await navigator.share({ title: `Join "${roomName || roomCode}" on Party Playlist`, url: shareUrl });
       } catch (e) {
         if (e.name !== 'AbortError') console.error('Share error:', e);
       }
@@ -2061,7 +2065,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
           </div>
           <HostDashboard
             hostUid={hostUid}
-            onCreateNew={() => setShowHistory(false)}
+            onCreateNew={handleEndRoom}
             onOpenRoom={handleSwitchRoom}
           />
         </div>
@@ -2096,18 +2100,8 @@ function HostDashboard({ hostUid, onCreateNew, onOpenRoom }) {
     });
   }, [hostUid]);
 
-  const handleReopen = async (room) => {
-    try {
-      await updateDoc(doc(db, 'rooms', room.id), {
-        lastActivityAt: serverTimestamp(),
-        endedByHost: false,
-      });
-      sessionStorage.setItem('roomCode', room.id);
-      onOpenRoom({ roomCode: room.id, guestPin: room.guestPin, roomName: room.name });
-    } catch (err) {
-      console.error('Reopen room error:', err);
-      setToast({ message: 'Failed to reopen party.', type: 'error' });
-    }
+  const handleReopen = (room) => {
+    onOpenRoom({ roomCode: room.id, guestPin: room.guestPin, roomName: room.name });
   };
 
   return (
@@ -2336,7 +2330,16 @@ function App() {
       <HostDashboard
         hostUid={hostUid}
         onCreateNew={() => setView('create-room')}
-        onOpenRoom={(room) => { setCurrentRoom(room); setView('host-view'); }}
+        onOpenRoom={async (room) => {
+          try {
+            await updateDoc(doc(db, 'rooms', room.roomCode), { lastActivityAt: serverTimestamp(), endedByHost: false });
+            sessionStorage.setItem('roomCode', room.roomCode);
+            setCurrentRoom(room);
+            setView('host-view');
+          } catch (err) {
+            console.error('Reopen room error:', err);
+          }
+        }}
       />
     );
   }
@@ -2354,6 +2357,7 @@ function App() {
   if (view === 'host-view' && currentRoom) {
     return (
       <HostView
+        key={currentRoom.roomCode}
         roomCode={currentRoom.roomCode}
         roomName={currentRoom.roomName}
         guestPin={currentRoom.guestPin}
