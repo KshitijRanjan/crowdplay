@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import emailjs from '@emailjs/browser';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import {
   getFirestore,
   collection,
@@ -71,6 +71,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
 
 const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
 const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN;
@@ -202,21 +203,19 @@ function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
 // REQUEST ACCESS FORM
 // ============================================================================
 function RequestAccessForm({ onBack, onSuccess }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleGoogleRequest = async () => {
     setError('');
     setLoading(true);
 
     try {
-      // Auth required before any Firestore read
-      await signInAnonymously(auth);
+      const result = await signInWithPopup(auth, googleProvider);
+      const email = result.user.email.toLowerCase().trim();
+      const name = result.user.displayName || email;
 
-      const reqRef = doc(db, 'hostRequests', email.toLowerCase());
+      const reqRef = doc(db, 'hostRequests', email);
       const existing = await getDoc(reqRef);
 
       if (existing.exists()) {
@@ -233,20 +232,19 @@ function RequestAccessForm({ onBack, onSuccess }) {
       }
 
       await setDoc(reqRef, {
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
+        name,
+        email,
         requestedAt: serverTimestamp(),
         status: 'pending',
       });
 
-      // Send email notification
       if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
         await emailjs.send(
           EMAILJS_SERVICE_ID,
           EMAILJS_TEMPLATE_ID,
           {
-            from_name: name.trim(),
-            from_email: email.toLowerCase().trim(),
+            from_name: name,
+            from_email: email,
             admin_url: `${window.location.origin}/admin`,
           },
           EMAILJS_PUBLIC_KEY
@@ -256,7 +254,11 @@ function RequestAccessForm({ onBack, onSuccess }) {
       onSuccess();
     } catch (err) {
       console.error('Request access error:', err);
-      setError('Failed to submit. Please try again.');
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        // User closed the popup — no error needed, just stop loading.
+      } else {
+        setError('Failed to submit. Please try again.');
+      }
     }
     setLoading(false);
   };
@@ -274,42 +276,23 @@ function RequestAccessForm({ onBack, onSuccess }) {
             <UserPlus className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Request Host Access</h2>
-          <p className="text-slate-400 text-sm">Fill in your details and we'll review your request.</p>
+          <p className="text-slate-400 text-sm">Sign in with Google to request access. We'll review it and get back to you.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
-            required
-            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Your email"
-            required
-            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+        {error && (
+          <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20 mb-4">
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            {error}
+          </div>
+        )}
 
-          {error && (
-            <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || !name.trim() || !email.trim()}
-            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Send Request'}
-          </button>
-        </form>
+        <button
+          onClick={handleGoogleRequest}
+          disabled={loading}
+          className="w-full py-4 bg-white text-slate-900 font-bold rounded-2xl disabled:opacity-50 hover:bg-slate-100 transition-all duration-300 flex items-center justify-center gap-2"
+        >
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continue with Google'}
+        </button>
       </div>
     </div>
   );
@@ -344,24 +327,22 @@ function RequestSentScreen({ onBack }) {
 // HOST LOGIN FORM
 // ============================================================================
 function HostLoginForm({ onBack, onSuccess }) {
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
 
     try {
-      // Auth required before any Firestore read
-      await signInAnonymously(auth);
+      const result = await signInWithPopup(auth, googleProvider);
+      const email = result.user.email.toLowerCase().trim();
 
-      const approvedRef = doc(db, 'approvedHosts', email.toLowerCase().trim());
+      const approvedRef = doc(db, 'approvedHosts', email);
       const approved = await getDoc(approvedRef);
 
       if (!approved.exists()) {
-        const reqRef = doc(db, 'hostRequests', email.toLowerCase().trim());
+        const reqRef = doc(db, 'hostRequests', email);
         const req = await getDoc(reqRef);
         if (req.exists()) {
           const status = req.data().status;
@@ -379,16 +360,18 @@ function HostLoginForm({ onBack, onSuccess }) {
         return;
       }
 
-      const uid = auth.currentUser.uid;
-
       sessionStorage.setItem('pinVerified', 'true');
       sessionStorage.setItem('userRole', 'host');
-      sessionStorage.setItem('hostEmail', email.toLowerCase().trim());
+      sessionStorage.setItem('hostEmail', email);
 
-      onSuccess(uid, email.toLowerCase().trim());
+      onSuccess(result.user.uid, email);
     } catch (err) {
       console.error('Host login error:', err);
-      setError('Login failed. Please try again.');
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        // User closed the popup — no error needed.
+      } else {
+        setError('Login failed. Please try again.');
+      }
     }
     setLoading(false);
   };
@@ -406,34 +389,23 @@ function HostLoginForm({ onBack, onSuccess }) {
             <Crown className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Host Login</h2>
-          <p className="text-slate-400 text-sm">Enter the email you used to request access.</p>
+          <p className="text-slate-400 text-sm">Sign in with the Google account you requested access with.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Your email"
-            required
-            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+        {error && (
+          <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20 mb-4">
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            {error}
+          </div>
+        )}
 
-          {error && (
-            <div className="flex items-start gap-2 text-red-400 text-sm bg-red-500/10 rounded-xl p-3 border border-red-500/20">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || !email.trim()}
-            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Continue'}
-          </button>
-        </form>
+        <button
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          className="w-full py-4 bg-white text-slate-900 font-bold rounded-2xl disabled:opacity-50 hover:bg-slate-100 transition-all duration-300 flex items-center justify-center gap-2"
+        >
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continue with Google'}
+        </button>
 
         <p className="text-center text-slate-600 text-xs mt-6">
           Don't have access?{' '}
