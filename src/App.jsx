@@ -114,10 +114,10 @@ function generateRoomCode() {
   return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
-function isRoomActive(roomData) {
-  if (!roomData || roomData.status !== 'active') return false;
-  const expiresAt = roomData.expiresAt?.toMillis ? roomData.expiresAt.toMillis() : 0;
-  return expiresAt > Date.now();
+function isRoomLive(roomData) {
+  if (!roomData || roomData.endedByHost) return false;
+  const last = roomData.lastActivityAt?.toMillis ? roomData.lastActivityAt.toMillis() : 0;
+  return (Date.now() - last) < 12 * 60 * 60 * 1000;
 }
 
 function clearSession() {
@@ -125,6 +125,7 @@ function clearSession() {
   sessionStorage.removeItem('userRole');
   sessionStorage.removeItem('roomCode');
   sessionStorage.removeItem('hostEmail');
+  sessionStorage.removeItem('guestName');
 }
 
 // ============================================================================
@@ -427,45 +428,50 @@ function HostLoginForm({ onBack, onSuccess }) {
 // ============================================================================
 // CREATE ROOM FORM
 // ============================================================================
+// ============================================================================
+// CREATE ROOM FORM
+// ============================================================================
 function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
+  const [roomName, setRoomName] = useState('');
   const [guestPin, setGuestPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleCreate = async () => {
-    if (guestPin.length !== 4) return;
+    if (guestPin.length !== 4 || !roomName.trim()) return;
     setLoading(true);
     setError('');
 
     try {
-      // Expire any existing active rooms for this host
+      // End any currently-live room for this host — only one live room per host.
       const existingQuery = query(
         collection(db, 'rooms'),
         where('hostUid', '==', hostUid),
-        where('status', '==', 'active')
+        where('endedByHost', '==', false)
       );
       const existingSnap = await getDocs(existingQuery);
-      const expireBatch = writeBatch(db);
-      existingSnap.forEach((d) => expireBatch.update(d.ref, { status: 'expired' }));
-      await expireBatch.commit();
+      const liveDocs = existingSnap.docs.filter((d) => isRoomLive(d.data()));
+      const endBatch = writeBatch(db);
+      liveDocs.forEach((d) => endBatch.update(d.ref, { endedByHost: true }));
+      if (liveDocs.length > 0) await endBatch.commit();
 
       const roomCode = generateRoomCode();
-      const expiresAt = Timestamp.fromMillis(Date.now() + 12 * 60 * 60 * 1000);
 
       await setDoc(doc(db, 'rooms', roomCode), {
         hostUid,
         hostEmail,
         guestPin,
+        name: roomName.trim(),
         createdAt: serverTimestamp(),
-        expiresAt,
-        status: 'active',
+        lastActivityAt: serverTimestamp(),
+        endedByHost: false,
       });
 
       await setDoc(doc(db, 'rooms', roomCode, 'roles', hostUid), { role: 'host' });
 
       sessionStorage.setItem('roomCode', roomCode);
 
-      onRoomCreated({ roomCode, guestPin });
+      onRoomCreated({ roomCode, guestPin, roomName: roomName.trim() });
     } catch (err) {
       console.error('Create room error:', err);
       setError('Failed to create room. Please try again.');
@@ -480,11 +486,20 @@ function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
           <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <Hash className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Set Guest PIN</h2>
-          <p className="text-slate-400 text-sm">Pick a 4-digit PIN your guests will use to join.</p>
+          <h2 className="text-2xl font-bold text-white mb-2">Start a New Party</h2>
+          <p className="text-slate-400 text-sm">Give it a name and pick a 4-digit PIN your guests will use to join.</p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
+          <input
+            type="text"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            placeholder="e.g. Friday Night Sessions"
+            maxLength={60}
+            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+
           <input
             type="text"
             inputMode="numeric"
@@ -505,7 +520,7 @@ function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
 
           <button
             onClick={handleCreate}
-            disabled={guestPin.length !== 4 || loading}
+            disabled={guestPin.length !== 4 || !roomName.trim() || loading}
             className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Start Party 🎉'}
@@ -547,7 +562,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
 
       const roomData = roomDoc.data();
 
-      if (!isRoomActive(roomData)) {
+      if (!isRoomLive(roomData)) {
         setError('This room has expired. Ask your host to start a new one.');
         setLoading(false);
         return;
@@ -1693,7 +1708,7 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
   const handleEndRoom = async () => {
     if (!window.confirm('End this party? The room will close for all guests.')) return;
     try {
-      await updateDoc(doc(db, 'rooms', roomCode), { status: 'expired' });
+      await updateDoc(doc(db, 'rooms', roomCode), { endedByHost: true });
       clearSession();
       onEndRoom();
     } catch (e) {
@@ -1979,7 +1994,7 @@ function App() {
         if (userRole === 'host' && savedRoomCode) {
           try {
             const roomDoc = await getDoc(doc(db, 'rooms', savedRoomCode));
-            if (roomDoc.exists() && isRoomActive(roomDoc.data())) {
+            if (roomDoc.exists() && isRoomLive(roomDoc.data())) {
               const rd = roomDoc.data();
               setCurrentRoom({ roomCode: savedRoomCode, guestPin: rd.guestPin });
               setView('host-view');
@@ -2015,10 +2030,10 @@ function App() {
       const existingQuery = query(
         collection(db, 'rooms'),
         where('hostUid', '==', uid),
-        where('status', '==', 'active')
+        where('endedByHost', '==', false)
       );
       const snap = await getDocs(existingQuery);
-      const activeRoom = snap.docs.find((d) => isRoomActive(d.data()));
+      const activeRoom = snap.docs.find((d) => isRoomLive(d.data()));
 
       if (activeRoom) {
         const rd = activeRoom.data();
