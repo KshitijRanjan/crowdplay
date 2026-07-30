@@ -103,6 +103,47 @@ function attributionLabel(song) {
   return null;
 }
 
+function effectiveOrder(song) {
+  if (song.manuallyPositioned) return song.order;
+  return song.addedAt?.toMillis ? song.addedAt.toMillis() : (song.addedAt?.seconds * 1000 || 0);
+}
+
+function sortPendingQueue(songs) {
+  const anchored = songs
+    .filter((s) => s.manuallyPositioned)
+    .sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
+
+  const unanchored = songs
+    .filter((s) => !s.manuallyPositioned)
+    .sort((a, b) => (b.upvotes?.length || 0) - (a.upvotes?.length || 0) || effectiveOrder(a) - effectiveOrder(b));
+
+  const segments = Array.from({ length: anchored.length + 1 }, () => []);
+  for (const song of unanchored) {
+    let seg = 0;
+    for (const a of anchored) {
+      if (effectiveOrder(song) >= effectiveOrder(a)) seg++;
+      else break;
+    }
+    segments[seg].push(song);
+  }
+
+  const result = [];
+  for (let i = 0; i < anchored.length; i++) {
+    result.push(...segments[i]);
+    result.push(anchored[i]);
+  }
+  result.push(...segments[anchored.length]);
+  return result;
+}
+
+// eslint-disable-next-line no-unused-vars
+function computeDropOrder(prevNeighbor, nextNeighbor) {
+  const GAP = 60000;
+  const prevOrder = prevNeighbor ? effectiveOrder(prevNeighbor) : (nextNeighbor ? effectiveOrder(nextNeighbor) - GAP * 2 : Date.now());
+  const nextOrder = nextNeighbor ? effectiveOrder(nextNeighbor) : prevOrder + GAP * 2;
+  return (prevOrder + nextOrder) / 2;
+}
+
 function canAddSong() {
   const now = Date.now();
   const recentAdds = JSON.parse(localStorage.getItem('recentAdds') || '[]');
@@ -1063,16 +1104,6 @@ function GuestView({ userId, roomCode, onLeave }) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const songs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      songs.sort((a, b) => {
-        if (a.isPriority && !b.isPriority) return -1;
-        if (!a.isPriority && b.isPriority) return 1;
-        const votesA = a.upvotes?.length || 0;
-        const votesB = b.upvotes?.length || 0;
-        if (votesA !== votesB) return votesB - votesA;
-        const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
-        const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
-        return ta - tb;
-      });
       setQueue(songs);
     }, (error) => {
       console.error('Queue subscription error:', error);
@@ -1141,7 +1172,6 @@ function GuestView({ userId, roomCode, onLeave }) {
         addedAt: serverTimestamp(),
         status: 'pending',
         upvotes: [],
-        isPriority: false,
       });
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       recordSongAdd();
@@ -1168,7 +1198,7 @@ function GuestView({ userId, roomCode, onLeave }) {
   };
 
   const nowPlaying = queue.find((s) => s.status === 'playing');
-  const upNext = queue.filter((s) => s.status === 'pending');
+  const upNext = sortPendingQueue(queue.filter((s) => s.status === 'pending'));
 
   return (
     <div className="min-h-screen bg-zinc-950">
