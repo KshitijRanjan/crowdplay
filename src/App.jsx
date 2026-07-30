@@ -149,8 +149,8 @@ function Toast({ message, type, onClose }) {
   }, [onClose]);
 
   return (
-    <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-medium transition-all duration-300 ${
-      type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-slate-700'
+    <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl text-zinc-100 font-medium transition-all duration-300 ${
+      type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-zinc-800'
     }`}>
       {type === 'success' ? <CheckCircle className="w-5 h-5" /> : type === 'error' ? <XCircle className="w-5 h-5" /> : null}
       <span>{message}</span>
@@ -163,20 +163,20 @@ function Toast({ message, type, onClose }) {
 // ============================================================================
 function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-12">
-          <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-purple-500/40">
-            <Music className="w-12 h-12 text-white" />
+          <div className="w-24 h-24 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Music className="w-12 h-12 text-zinc-100" />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Party Playlist</h1>
-          <p className="text-slate-400">Shared music for your crew</p>
+          <h1 className="text-4xl font-medium text-zinc-100 mb-2">Party Playlist</h1>
+          <p className="text-zinc-400">Shared music for your crew</p>
         </div>
 
         <div className="space-y-4">
           <button
             onClick={onHostParty}
-            className="w-full py-5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xl rounded-2xl hover:from-purple-500 hover:to-pink-500 transition-all duration-300 shadow-lg shadow-purple-500/30 flex items-center justify-center gap-3"
+            className="w-full py-5 bg-indigo-500 text-zinc-100 font-medium text-xl rounded-2xl hover:bg-indigo-400 transition-all duration-300 flex items-center justify-center gap-3"
           >
             <Crown className="w-6 h-6" />
             Host a Party
@@ -184,9 +184,9 @@ function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
 
           <button
             onClick={onJoinParty}
-            className="w-full py-5 bg-slate-800 border border-slate-700 text-white font-bold text-xl rounded-2xl hover:bg-slate-700 transition-all duration-300 flex items-center justify-center gap-3"
+            className="w-full py-5 bg-zinc-900 border border-zinc-800 text-zinc-100 font-medium text-xl rounded-2xl hover:bg-zinc-800 transition-all duration-300 flex items-center justify-center gap-3"
           >
-            <Music className="w-6 h-6 text-purple-400" />
+            <Music className="w-6 h-6 text-indigo-400" />
             Join a Party
           </button>
         </div>
@@ -194,7 +194,7 @@ function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
         <div className="mt-8 text-center">
           <button
             onClick={onRequestAccess}
-            className="text-slate-500 hover:text-slate-300 text-sm transition-colors"
+            className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
           >
             Want to host? Request access →
           </button>
@@ -202,7 +202,7 @@ function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
 
         {/* Admin — deliberately subtle */}
         <div className="mt-6 text-center">
-          <button onClick={onAdmin} className="text-slate-800 hover:text-slate-600 text-xs transition-colors select-none">
+          <button onClick={onAdmin} className="text-zinc-900 hover:text-zinc-700 text-xs transition-colors select-none">
             ···
           </button>
         </div>
@@ -279,19 +279,19 @@ function RequestAccessForm({ onBack, onSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-purple-500/30 shadow-2xl">
-        <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors text-sm">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="bg-zinc-900 rounded-2xl p-8 w-full max-w-sm border border-zinc-800">
+        <button onClick={onBack} className="flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-6 transition-colors text-sm">
           <ChevronLeft className="w-4 h-4" />
           Back
         </button>
 
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <UserPlus className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <UserPlus className="w-8 h-8 text-zinc-100" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Request Host Access</h2>
-          <p className="text-slate-400 text-sm">Sign in with Google to request access. We'll review it and get back to you.</p>
+          <h2 className="text-2xl font-medium text-zinc-100 mb-2">Request Host Access</h2>
+          <p className="text-zinc-400 text-sm">Sign in with Google to request access. We'll review it and get back to you.</p>
         </div>
 
         {error && (
@@ -304,7 +304,7 @@ function RequestAccessForm({ onBack, onSuccess }) {
         <button
           onClick={handleGoogleRequest}
           disabled={loading}
-          className="w-full py-4 bg-white text-slate-900 font-bold rounded-2xl disabled:opacity-50 hover:bg-slate-100 transition-all duration-300 flex items-center justify-center gap-2"
+          className="w-full py-4 bg-white text-zinc-950 font-medium rounded-2xl disabled:opacity-50 hover:bg-zinc-100 transition-all duration-300 flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continue with Google'}
         </button>
@@ -318,18 +318,18 @@ function RequestAccessForm({ onBack, onSuccess }) {
 // ============================================================================
 function RequestSentScreen({ onBack }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-green-500/30 shadow-2xl text-center">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="bg-zinc-900 rounded-2xl p-8 w-full max-w-sm border border-green-500/30 text-center">
         <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
           <CheckCircle className="w-10 h-10 text-green-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-3">Request Sent!</h2>
-        <p className="text-slate-400 mb-8">
+        <h2 className="text-2xl font-medium text-zinc-100 mb-3">Request Sent!</h2>
+        <p className="text-zinc-400 mb-8">
           Your request has been submitted. You'll hear back once it's reviewed. Come back to "Host a Party" once approved.
         </p>
         <button
           onClick={onBack}
-          className="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-2xl transition-colors"
+          className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-medium rounded-2xl transition-colors"
         >
           Back to Home
         </button>
@@ -395,19 +395,19 @@ function HostLoginForm({ onBack, onSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-purple-500/30 shadow-2xl">
-        <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors text-sm">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="bg-zinc-900 rounded-2xl p-8 w-full max-w-sm border border-zinc-800">
+        <button onClick={onBack} className="flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-6 transition-colors text-sm">
           <ChevronLeft className="w-4 h-4" />
           Back
         </button>
 
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Crown className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Crown className="w-8 h-8 text-zinc-100" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Host Login</h2>
-          <p className="text-slate-400 text-sm">Sign in with the Google account you requested access with.</p>
+          <h2 className="text-2xl font-medium text-zinc-100 mb-2">Host Login</h2>
+          <p className="text-zinc-400 text-sm">Sign in with the Google account you requested access with.</p>
         </div>
 
         {error && (
@@ -420,14 +420,14 @@ function HostLoginForm({ onBack, onSuccess }) {
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full py-4 bg-white text-slate-900 font-bold rounded-2xl disabled:opacity-50 hover:bg-slate-100 transition-all duration-300 flex items-center justify-center gap-2"
+          className="w-full py-4 bg-white text-zinc-950 font-medium rounded-2xl disabled:opacity-50 hover:bg-zinc-100 transition-all duration-300 flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continue with Google'}
         </button>
 
-        <p className="text-center text-slate-600 text-xs mt-6">
+        <p className="text-center text-zinc-700 text-xs mt-6">
           Don't have access?{' '}
-          <button onClick={onBack} className="text-purple-400 hover:text-purple-300">
+          <button onClick={onBack} className="text-indigo-400 hover:text-indigo-300">
             Request it
           </button>
         </p>
@@ -488,14 +488,14 @@ function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-purple-500/30 shadow-2xl">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="bg-zinc-900 rounded-2xl p-8 w-full max-w-sm border border-zinc-800">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Hash className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Hash className="w-8 h-8 text-zinc-100" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Start a New Party</h2>
-          <p className="text-slate-400 text-sm">Give it a name and pick a 4-digit PIN your guests will use to join.</p>
+          <h2 className="text-2xl font-medium text-zinc-100 mb-2">Start a New Party</h2>
+          <p className="text-zinc-400 text-sm">Give it a name and pick a 4-digit PIN your guests will use to join.</p>
         </div>
 
         <div className="space-y-4">
@@ -505,7 +505,7 @@ function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
             onChange={(e) => setRoomName(e.target.value)}
             placeholder="e.g. Friday Night Sessions"
             maxLength={60}
-            className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
 
           <input
@@ -516,7 +516,7 @@ function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
             value={guestPin}
             onChange={(e) => setGuestPin(e.target.value.replace(/\D/g, ''))}
             placeholder="e.g. 4729"
-            className="w-full text-center text-4xl tracking-[0.5em] py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full text-center text-4xl tracking-[0.5em] py-4 bg-zinc-800/50 border border-zinc-700 rounded-2xl text-zinc-100 placeholder:text-zinc-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
 
           {error && (
@@ -529,7 +529,7 @@ function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
           <button
             onClick={handleCreate}
             disabled={guestPin.length !== 4 || !roomName.trim() || loading}
-            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
+            className="w-full py-4 bg-indigo-500 text-zinc-100 font-medium rounded-2xl disabled:opacity-50 hover:bg-indigo-400 transition-all duration-300"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Start Party 🎉'}
           </button>
@@ -610,24 +610,24 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-purple-500/30 shadow-2xl">
-        <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors text-sm">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="bg-zinc-900 rounded-2xl p-8 w-full max-w-sm border border-zinc-800">
+        <button onClick={onBack} className="flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-6 transition-colors text-sm">
           <ChevronLeft className="w-4 h-4" />
           Back
         </button>
 
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Music className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Music className="w-8 h-8 text-zinc-100" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Join a Party</h2>
-          <p className="text-slate-400 text-sm">Ask your host for the room code and PIN.</p>
+          <h2 className="text-2xl font-medium text-zinc-100 mb-2">Join a Party</h2>
+          <p className="text-zinc-400 text-sm">Ask your host for the room code and PIN.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Your Name</label>
+            <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Your Name</label>
             <input
               type="text"
               value={guestName}
@@ -635,12 +635,12 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
               placeholder="e.g. Priya"
               maxLength={30}
               required
-              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Room Code</label>
+            <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Room Code</label>
             <input
               type="text"
               value={roomCode}
@@ -648,12 +648,12 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
               placeholder="e.g. XK29TM"
               maxLength={6}
               required
-              className="w-full text-center text-2xl tracking-widest py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+              className="w-full text-center text-2xl tracking-widest py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
             />
           </div>
 
           <div>
-            <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Guest PIN</label>
+            <label className="text-zinc-400 text-xs uppercase tracking-wider mb-2 block">Guest PIN</label>
             <input
               type="text"
               inputMode="numeric"
@@ -663,7 +663,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               placeholder="4-digit PIN"
               required
-              className="w-full text-center text-3xl tracking-[0.5em] py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full text-center text-3xl tracking-[0.5em] py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 placeholder:tracking-normal placeholder:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
@@ -677,7 +677,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
           <button
             type="submit"
             disabled={loading || !guestName.trim() || roomCode.length !== 6 || pin.length !== 4}
-            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
+            className="w-full py-4 bg-indigo-500 text-zinc-100 font-medium rounded-2xl disabled:opacity-50 hover:bg-indigo-400 transition-all duration-300"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Join Party'}
           </button>
@@ -761,18 +761,18 @@ function AdminFlow({ onBack }) {
 
   if (adminView === 'login') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <div className="bg-slate-800/80 backdrop-blur-xl rounded-3xl p-8 w-full max-w-sm border border-slate-600/30 shadow-2xl">
-          <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors text-sm">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+        <div className="bg-zinc-900 rounded-2xl p-8 w-full max-w-sm border border-zinc-700/30">
+          <button onClick={onBack} className="flex items-center gap-2 text-zinc-400 hover:text-zinc-100 mb-6 transition-colors text-sm">
             <ChevronLeft className="w-4 h-4" />
             Back
           </button>
 
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Shield className="w-8 h-8 text-slate-300" />
+            <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-8 h-8 text-zinc-300" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Admin</h2>
+            <h2 className="text-2xl font-medium text-zinc-100 mb-2">Admin</h2>
           </div>
 
           <form onSubmit={handleAdminLogin} className="space-y-4">
@@ -781,13 +781,13 @@ function AdminFlow({ onBack }) {
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="Admin PIN"
-              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400"
             />
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
             <button
               type="submit"
               disabled={!pin}
-              className="w-full py-4 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-2xl disabled:opacity-50 transition-colors"
+              className="w-full py-4 bg-zinc-700 hover:bg-zinc-500 text-zinc-100 font-medium rounded-2xl disabled:opacity-50 transition-colors"
             >
               Enter
             </button>
@@ -807,16 +807,16 @@ function AdminFlow({ onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 px-6 py-4">
+    <div className="min-h-screen bg-zinc-950">
+      <header className="bg-zinc-950/80 border-b border-zinc-800/50 px-6 py-4">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6 text-slate-400" />
-            <h1 className="text-xl font-bold text-white">Admin Panel</h1>
+            <Shield className="w-6 h-6 text-zinc-400" />
+            <h1 className="text-xl font-medium text-zinc-100">Admin Panel</h1>
           </div>
           <button
             onClick={loadRequests}
-            className="text-slate-400 hover:text-white text-sm transition-colors"
+            className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors"
           >
             Refresh
           </button>
@@ -826,11 +826,11 @@ function AdminFlow({ onBack }) {
       <main className="max-w-2xl mx-auto px-4 py-6">
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
           </div>
         ) : (
           <>
-            <h2 className="text-white font-semibold mb-4">
+            <h2 className="text-zinc-100 font-semibold mb-4">
               Pending Requests
               {pending.length > 0 && (
                 <span className="ml-2 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">{pending.length}</span>
@@ -838,16 +838,16 @@ function AdminFlow({ onBack }) {
             </h2>
 
             {pending.length === 0 ? (
-              <p className="text-slate-500 text-sm italic mb-8">No pending requests.</p>
+              <p className="text-zinc-500 text-sm italic mb-8">No pending requests.</p>
             ) : (
               <div className="space-y-3 mb-8">
                 {pending.map((req) => (
-                  <div key={req.id} className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/50">
+                  <div key={req.id} className="bg-zinc-900/80 rounded-2xl p-4 border border-zinc-800/50">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-white font-medium">{req.name}</p>
-                        <p className="text-slate-400 text-sm">{req.email}</p>
-                        <p className="text-slate-600 text-xs mt-1">
+                        <p className="text-zinc-100 font-medium">{req.name}</p>
+                        <p className="text-zinc-400 text-sm">{req.email}</p>
+                        <p className="text-zinc-700 text-xs mt-1">
                           {req.requestedAt?.toDate ? req.requestedAt.toDate().toLocaleDateString() : ''}
                         </p>
                       </div>
@@ -855,7 +855,7 @@ function AdminFlow({ onBack }) {
                         <button
                           onClick={() => handleApprove(req)}
                           disabled={!!actionLoading}
-                          className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1"
+                          className="px-3 py-2 bg-green-600 hover:bg-green-500 text-zinc-100 text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1"
                         >
                           {actionLoading === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                           Approve
@@ -877,13 +877,13 @@ function AdminFlow({ onBack }) {
 
             {others.length > 0 && (
               <>
-                <h2 className="text-slate-400 font-semibold text-sm uppercase tracking-wider mb-4">Previous</h2>
+                <h2 className="text-zinc-400 font-semibold text-sm uppercase tracking-wider mb-4">Previous</h2>
                 <div className="space-y-2">
                   {others.map((req) => (
-                    <div key={req.id} className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/30 flex items-center justify-between">
+                    <div key={req.id} className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/30 flex items-center justify-between">
                       <div>
-                        <p className="text-slate-300 text-sm font-medium">{req.name}</p>
-                        <p className="text-slate-500 text-xs">{req.email}</p>
+                        <p className="text-zinc-300 text-sm font-medium">{req.name}</p>
+                        <p className="text-zinc-500 text-xs">{req.email}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         {statusBadge(req.status)}
@@ -944,28 +944,28 @@ function QueueSidebar({
         onClick={() => setShowSidebar(false)}
       />
       <aside
-        className={`fixed right-0 bg-slate-900/95 backdrop-blur-lg border-l border-slate-700/50 p-6 overflow-y-auto z-50 transform transition-transform duration-300 top-0 bottom-0 w-80 ${showSidebar ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed right-0 bg-zinc-950/95 border-l border-zinc-800/50 p-6 overflow-y-auto z-50 transform transition-transform duration-300 top-0 bottom-0 w-80 ${showSidebar ? 'translate-x-0' : 'translate-x-full'}`}
       >
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <SkipForward className="w-5 h-5 text-purple-400" />
+          <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
+            <SkipForward className="w-5 h-5 text-indigo-400" />
             Up Next ({upNext.length})
           </h3>
           <button
             onClick={() => setShowSidebar(false)}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-slate-400" />
+            <X className="w-5 h-5 text-zinc-400" />
           </button>
         </div>
 
         <div className="space-y-3">
           {upNext.length === 0 ? (
-            <p className="text-slate-500 text-sm italic">Queue is empty...</p>
+            <p className="text-zinc-500 text-sm italic">Queue is empty...</p>
           ) : (
             upNext.map((song, index) => (
-              <div key={song.id} className="flex items-center gap-3 bg-slate-800/60 rounded-xl p-2 group">
-                <span className="w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center text-xs text-slate-400 font-bold flex-shrink-0">
+              <div key={song.id} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 group">
+                <span className="w-6 h-6 bg-zinc-800 rounded-full flex items-center justify-center text-xs text-zinc-400 font-medium flex-shrink-0">
                   {index + 1}
                 </span>
                 <img
@@ -974,8 +974,8 @@ function QueueSidebar({
                   className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{song.title}</p>
-                  <p className="text-slate-400 text-xs truncate">
+                  <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+                  <p className="text-zinc-400 text-xs truncate">
                     {song.channelTitle}
                     {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
                   </p>
@@ -985,14 +985,14 @@ function QueueSidebar({
                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handlePlayNext(song)}
-                      className={`p-1.5 hover:bg-slate-700 rounded-full transition-colors ${song.isPriority ? 'text-green-400' : 'text-blue-400 hover:text-blue-300'}`}
+                      className={`p-1.5 hover:bg-zinc-800 rounded-full transition-colors ${song.isPriority ? 'text-green-400' : 'text-blue-400 hover:text-blue-300'}`}
                       title="Play Next"
                     >
                       <ArrowUpCircle className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteSong(song.id)}
-                      className="p-1.5 hover:bg-slate-700 rounded-full text-slate-500 hover:text-red-400 transition-colors"
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1002,10 +1002,10 @@ function QueueSidebar({
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleUpvote(song)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white'}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
                     >
                       <ArrowUpCircle className="w-4 h-4" />
-                      <span className="text-xs font-bold">{song.upvotes?.length || 0}</span>
+                      <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
                     </button>
                   </div>
                 )}
@@ -1015,19 +1015,19 @@ function QueueSidebar({
         </div>
 
         {playedHistory.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-slate-700/50 opacity-60 hover:opacity-100 transition-opacity">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">History</h3>
+          <div className="mt-8 pt-6 border-t border-zinc-800/50 opacity-60 hover:opacity-100 transition-opacity">
+            <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-4">History</h3>
             <div className="space-y-3">
               {playedHistory.slice().reverse().map((song) => (
-                <div key={song.id} className="flex items-center gap-3 bg-slate-800/40 rounded-xl p-2">
+                <div key={song.id} className="flex items-center gap-3 bg-zinc-900/60 rounded-xl p-2">
                   <img src={song.thumbnailUrl} alt={song.title} className="w-10 h-10 rounded-lg object-cover grayscale" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-slate-400 text-sm font-medium truncate">{song.title}</p>
+                    <p className="text-zinc-400 text-sm font-medium truncate">{song.title}</p>
                   </div>
                   {isHost && handleRestoreSong && (
                     <button
                       onClick={() => handleRestoreSong(song)}
-                      className="p-1.5 hover:bg-slate-700 rounded-full text-slate-500 hover:text-green-400 transition-colors flex-shrink-0"
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-green-400 transition-colors flex-shrink-0"
                       title="Add back to queue"
                     >
                       <Plus className="w-4 h-4" />
@@ -1171,25 +1171,25 @@ function GuestView({ userId, roomCode }) {
   const upNext = queue.filter((s) => s.status === 'pending');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-lg border-b border-slate-700/50 px-4 py-4">
+    <div className="min-h-screen bg-zinc-950">
+      <header className="sticky top-0 z-40 bg-zinc-950/90 border-b border-zinc-800/50 px-4 py-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-              <Music className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center">
+              <Music className="w-5 h-5 text-zinc-100" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Party Playlist</h1>
-              <p className="text-slate-500 text-xs font-mono">{roomCode}</p>
+              <h1 className="text-xl font-medium text-zinc-100">Party Playlist</h1>
+              <p className="text-zinc-500 text-xs font-mono">{roomCode}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-slate-400 text-sm hidden sm:inline">{queue.length} in queue</span>
+            <span className="text-zinc-400 text-sm hidden sm:inline">{queue.length} in queue</span>
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+              className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
             >
-              <Menu className="w-5 h-5 text-white" />
+              <Menu className="w-5 h-5 text-zinc-100" />
             </button>
           </div>
         </div>
@@ -1198,19 +1198,19 @@ function GuestView({ userId, roomCode }) {
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
         <form onSubmit={handleSearch} className="mb-6">
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-zinc-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for a song..."
-              className="w-full pl-12 pr-4 py-4 bg-slate-800/80 border border-slate-700 rounded-2xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full pl-12 pr-4 py-4 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
           <button
             type="submit"
             disabled={loading || !searchQuery.trim()}
-            className="w-full mt-3 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
+            className="w-full mt-3 py-4 bg-indigo-500 text-zinc-100 font-medium rounded-2xl disabled:opacity-50 hover:bg-indigo-400 transition-all duration-300"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Search'}
           </button>
@@ -1218,21 +1218,21 @@ function GuestView({ userId, roomCode }) {
 
         {searchResults.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">Search Results</h2>
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4">Search Results</h2>
             <div className="space-y-3">
               {searchResults.map((song) => (
-                <div key={song.videoId} className="flex items-center gap-4 bg-slate-800/60 rounded-2xl p-3 border border-slate-700/50">
+                <div key={song.videoId} className="flex items-center gap-4 bg-zinc-900/80 rounded-2xl p-3 border border-zinc-800/50">
                   <img src={song.thumbnailUrl} alt={song.title} className="w-16 h-16 rounded-xl object-cover" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{song.title}</p>
-                    <p className="text-slate-400 text-sm truncate">{song.channelTitle}</p>
-                    <p className="text-slate-500 text-xs">{formatTime(song.duration)}</p>
+                    <p className="text-zinc-100 font-medium truncate">{song.title}</p>
+                    <p className="text-zinc-400 text-sm truncate">{song.channelTitle}</p>
+                    <p className="text-zinc-500 text-xs">{formatTime(song.duration)}</p>
                   </div>
                   <button
                     onClick={() => handleAddSong(song)}
-                    className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-green-500/30 hover:scale-105 transition-transform"
+                    className="flex-shrink-0 w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center transition-transform"
                   >
-                    <Plus className="w-6 h-6 text-white" />
+                    <Plus className="w-6 h-6 text-zinc-100" />
                   </button>
                 </div>
               ))}
@@ -1242,16 +1242,16 @@ function GuestView({ userId, roomCode }) {
 
         {nowPlaying && (
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
               <Play className="w-5 h-5 text-green-400" />
               Now Playing
             </h2>
-            <div className="bg-gradient-to-br from-purple-900/80 to-pink-900/80 rounded-3xl p-4 border border-purple-500/30">
+            <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
               <div className="flex items-center gap-4">
-                <img src={nowPlaying.thumbnailUrl} alt={nowPlaying.title} className="w-20 h-20 rounded-2xl object-cover shadow-xl" />
+                <img src={nowPlaying.thumbnailUrl} alt={nowPlaying.title} className="w-20 h-20 rounded-2xl object-cover" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-bold text-lg truncate">{nowPlaying.title}</p>
-                  <p className="text-purple-300 text-sm truncate">{nowPlaying.channelTitle}</p>
+                  <p className="text-zinc-100 font-medium text-lg truncate">{nowPlaying.title}</p>
+                  <p className="text-indigo-300 text-sm truncate">{nowPlaying.channelTitle}</p>
                 </div>
               </div>
             </div>
@@ -1260,18 +1260,18 @@ function GuestView({ userId, roomCode }) {
 
         {upNext.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <SkipForward className="w-5 h-5 text-slate-400" />
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+              <SkipForward className="w-5 h-5 text-zinc-400" />
               Up Next ({upNext.length})
             </h2>
             <div className="space-y-3">
               {upNext.map((song, index) => (
-                <div key={song.id} className="flex items-center gap-4 bg-slate-800/40 rounded-2xl p-3 border border-slate-700/30">
-                  <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-slate-400 font-bold text-sm">{index + 1}</div>
+                <div key={song.id} className="flex items-center gap-4 bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800/30">
+                  <div className="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-400 font-medium text-sm">{index + 1}</div>
                   <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate text-sm">{song.title}</p>
-                    <p className="text-slate-400 text-xs truncate">
+                    <p className="text-zinc-100 font-medium truncate text-sm">{song.title}</p>
+                    <p className="text-zinc-400 text-xs truncate">
                       {song.channelTitle}
                       {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
                     </p>
@@ -1284,11 +1284,11 @@ function GuestView({ userId, roomCode }) {
 
         {!nowPlaying && upNext.length === 0 && searchResults.length === 0 && (
           <div className="text-center py-16">
-            <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Music className="w-12 h-12 text-slate-600" />
+            <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Music className="w-12 h-12 text-zinc-700" />
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Queue is empty</h3>
-            <p className="text-slate-400">Search for a song to get the party started!</p>
+            <h3 className="text-xl font-semibold text-zinc-100 mb-2">Queue is empty</h3>
+            <p className="text-zinc-400">Search for a song to get the party started!</p>
           </div>
         )}
       </main>
@@ -1797,29 +1797,29 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
+    <div className="min-h-screen bg-zinc-950 flex flex-col">
       <div className="absolute" style={{ width: 1, height: 1, overflow: 'hidden' }}>
         <div id="youtube-player" ref={playerContainerRef}></div>
       </div>
 
       {/* Header */}
-      <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 px-4 py-3">
+      <header className="bg-zinc-950/80 border-b border-zinc-800/50 px-4 py-3">
         <div className="max-w-4xl mx-auto">
           {/* Top row */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                <Crown className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center">
+                <Crown className="w-5 h-5 text-zinc-100" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">Party Playlist</h1>
-                <p className="text-slate-400 text-xs">Host View</p>
+                <h1 className="text-xl font-medium text-zinc-100">Party Playlist</h1>
+                <p className="text-zinc-400 text-xs">Host View</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowHistory(true)}
-                className="px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-slate-600/50 hover:bg-slate-700/30 rounded-lg transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 border border-zinc-700/50 hover:bg-zinc-800/30 rounded-lg transition-colors flex items-center gap-1.5"
               >
                 <Clock className="w-3.5 h-3.5" />
                 History
@@ -1832,16 +1832,16 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
               </button>
               <button
                 onClick={() => setShowSidebar(!showSidebar)}
-                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
               >
-                <Menu className="w-5 h-5 text-white" />
+                <Menu className="w-5 h-5 text-zinc-100" />
               </button>
             </div>
           </div>
 
           {/* Room info row — guests join using these */}
           {panelExpanded ? (
-            <div className="bg-slate-800/60 rounded-2xl px-4 py-3 border border-slate-700/40">
+            <div className="bg-zinc-900/80 rounded-2xl px-4 py-3 border border-zinc-800/40">
               <div className="flex flex-wrap items-center justify-center gap-4">
                 <div className="flex flex-col items-center gap-2 flex-shrink-0">
                   <div className="bg-white p-2 rounded-xl">
@@ -1849,43 +1849,43 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                   </div>
                   <button
                     onClick={handleShare}
-                    className="text-xs text-purple-300 hover:text-purple-200 transition-colors flex items-center gap-1"
+                    className="text-xs text-indigo-300 hover:text-indigo-200 transition-colors flex items-center gap-1"
                   >
                     Share link
                   </button>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-center">
-                    <p className="text-slate-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
-                    <p className="text-white font-mono font-bold text-lg tracking-widest">{guestPin}</p>
+                    <p className="text-zinc-500 text-xs uppercase tracking-wider mb-0.5">Guest PIN</p>
+                    <p className="text-zinc-100 font-mono font-medium text-lg tracking-widest">{guestPin}</p>
                   </div>
                   <button
                     onClick={() => copyToClipboard(guestPin, setPinCopied)}
-                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+                    className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
                     title="Copy guest PIN"
                   >
                     {pinCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => setPanelExpanded(false)}
-                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+                    className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
                     title="Collapse"
                   >
                     <ChevronUp className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <p className="text-slate-500 text-xs text-center mt-2">Scan to join — guests still need the PIN</p>
+              <p className="text-zinc-500 text-xs text-center mt-2">Scan to join — guests still need the PIN</p>
             </div>
           ) : (
-            <div className="bg-slate-800/60 rounded-2xl px-4 py-2.5 border border-slate-700/40 flex items-center justify-between">
-              <p className="text-slate-400 text-sm flex items-center gap-2">
+            <div className="bg-zinc-900/80 rounded-2xl px-4 py-2.5 border border-zinc-800/40 flex items-center justify-between">
+              <p className="text-zinc-400 text-sm flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-white inline-block" />
-                Guests can join with PIN <span className="font-mono font-bold text-pink-400">{guestPin}</span>
+                Guests can join with PIN <span className="font-mono font-medium text-indigo-400">{guestPin}</span>
               </p>
               <button
                 onClick={() => setPanelExpanded(true)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
                 title="Expand"
               >
                 <ChevronDown className="w-4 h-4" />
@@ -1896,19 +1896,19 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
           {/* Search — always visible */}
           <form onSubmit={handleSearch} className="flex gap-2 mt-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search and add a song..."
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                className="w-full pl-9 pr-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
               />
             </div>
             <button
               type="submit"
               disabled={searchLoading || !searchQuery.trim()}
-              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
+              className="px-4 py-2.5 bg-indigo-500 text-zinc-100 font-semibold rounded-xl disabled:opacity-50 hover:bg-indigo-400 transition-all text-sm flex items-center gap-1.5"
             >
               {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               Search
@@ -1916,7 +1916,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
             <button
               type="button"
               onClick={() => setShowImport((v) => !v)}
-              className={`px-3 py-2.5 rounded-xl transition-all border text-sm flex items-center gap-1.5 ${showImport ? 'bg-purple-600/20 border-purple-500/40 text-purple-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+              className={`px-3 py-2.5 rounded-xl transition-all border text-sm flex items-center gap-1.5 ${showImport ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-100'}`}
               title="Import playlist"
             >
               <ListPlus className="w-4 h-4" />
@@ -1924,7 +1924,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
             <button
               onClick={handleClearPlaylist}
               type="button"
-              className="px-3 py-2.5 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 rounded-xl transition-all border border-slate-700 hover:border-red-500/30"
+              className="px-3 py-2.5 bg-zinc-900 hover:bg-red-900/50 text-zinc-400 hover:text-red-400 rounded-xl transition-all border border-zinc-800 hover:border-red-500/30"
               title="Clear Playlist"
             >
               <Trash2 className="w-4 h-4" />
@@ -1935,19 +1935,19 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
           {showImport && (
             <div className="flex gap-2 mt-2">
               <div className="flex-1 relative">
-                <ListPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <ListPlus className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
                 <input
                   type="text"
                   value={playlistId}
                   onChange={(e) => setPlaylistId(e.target.value)}
                   placeholder="Paste YouTube Playlist ID or URL..."
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-800/80 border border-purple-500/30 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  className="w-full pl-9 pr-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
               <button
                 onClick={async () => { await handleSeedPlaylist(); setShowImport(false); }}
                 disabled={seedingPlaylist || !playlistId.trim()}
-                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all text-sm flex items-center gap-1.5"
+                className="px-4 py-2.5 bg-indigo-500 text-zinc-100 font-semibold rounded-xl disabled:opacity-50 hover:bg-indigo-400 transition-all text-sm flex items-center gap-1.5"
               >
                 {seedingPlaylist ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListPlus className="w-4 h-4" />}
                 Import
@@ -1955,7 +1955,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
               <button
                 type="button"
                 onClick={() => setShowImport(false)}
-                className="px-3 py-2.5 bg-slate-800 text-slate-400 hover:text-white rounded-xl border border-slate-700 transition-colors"
+                className="px-3 py-2.5 bg-zinc-900 text-zinc-400 hover:text-zinc-100 rounded-xl border border-zinc-800 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1972,14 +1972,14 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
               <img
                 src={currentSong.thumbnailUrl?.replace('mqdefault', 'maxresdefault') || currentSong.thumbnailUrl}
                 alt={currentSong.title}
-                className="w-full aspect-video rounded-3xl object-cover shadow-2xl shadow-purple-500/20"
+                className="w-full aspect-video rounded-2xl object-cover"
                 onError={(e) => { e.target.src = currentSong.thumbnailUrl; }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent rounded-3xl" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent rounded-2xl" />
               <div className="absolute bottom-6 left-6 right-6">
-                <p className="text-sm text-purple-300 uppercase tracking-wider mb-2">Now Playing</p>
-                <h2 className="text-3xl font-bold text-white mb-2 line-clamp-2">{currentSong.title}</h2>
-                <p className="text-lg text-slate-300">{currentSong.channelTitle}</p>
+                <p className="text-sm text-indigo-300 uppercase tracking-wider mb-2">Now Playing</p>
+                <h2 className="text-3xl font-medium text-zinc-100 mb-2 line-clamp-2">{currentSong.title}</h2>
+                <p className="text-lg text-zinc-300">{currentSong.channelTitle}</p>
               </div>
             </div>
 
@@ -1990,31 +1990,31 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 max={duration || 100}
                 value={progress}
                 onChange={handleSeek}
-                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-125"
+                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-125"
                 style={{ background: `linear-gradient(to right, #a855f7 0%, #ec4899 ${progressPercent}%, #334155 ${progressPercent}%, #334155 100%)` }}
               />
-              <div className="flex justify-between text-sm text-slate-400 mt-2">
+              <div className="flex justify-between text-sm text-zinc-400 mt-2">
                 <span>{formatTime(progress)}</span>
                 <span>{formatTime(duration)}</span>
               </div>
             </div>
 
             <div className="flex justify-center gap-6">
-              <button onClick={handlePrevious} className="w-14 h-14 bg-slate-700 hover:bg-slate-600 text-white rounded-full flex items-center justify-center transition-colors" title="Previous">
+              <button onClick={handlePrevious} className="w-14 h-14 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-full flex items-center justify-center transition-colors" title="Previous">
                 <SkipBack className="w-6 h-6" />
               </button>
-              <button onClick={togglePlay} className="w-16 h-16 bg-white hover:bg-slate-200 text-purple-900 rounded-full flex items-center justify-center transition-colors shadow-lg shadow-white/10" title={isPlaying ? 'Pause' : 'Play'}>
+              <button onClick={togglePlay} className="w-16 h-16 bg-zinc-100 hover:bg-white text-zinc-950 rounded-full flex items-center justify-center transition-colors" title={isPlaying ? 'Pause' : 'Play'}>
                 {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current translate-x-1" />}
               </button>
-              <button onClick={handleSkip} className="w-14 h-14 bg-slate-700 hover:bg-slate-600 text-white rounded-full flex items-center justify-center transition-colors" title="Skip">
+              <button onClick={handleSkip} className="w-14 h-14 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-full flex items-center justify-center transition-colors" title="Skip">
                 <SkipForward className="w-6 h-6" />
               </button>
             </div>
           </div>
         ) : (
           <div className="text-center">
-            <h2 className="text-xl font-bold text-white mb-2">Waiting for songs...</h2>
-            <p className="text-slate-400 text-sm">Search above to add the first one</p>
+            <h2 className="text-xl font-medium text-zinc-100 mb-2">Waiting for songs...</h2>
+            <p className="text-zinc-400 text-sm">Search above to add the first one</p>
           </div>
         )}
 
@@ -2022,17 +2022,17 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
         {searchResults.length > 0 && (
           <div className="w-full max-w-2xl mt-6 space-y-2 max-h-64 overflow-y-auto">
             {searchResults.map((song) => (
-              <div key={song.videoId} className="flex items-center gap-3 bg-slate-800/60 rounded-xl p-2 border border-slate-700/50">
+              <div key={song.videoId} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 border border-zinc-800/50">
                 <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{song.title}</p>
-                  <p className="text-slate-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
+                  <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+                  <p className="text-zinc-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
                 </div>
                 <button
                   onClick={() => handleAddSong(song)}
-                  className="flex-shrink-0 w-9 h-9 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center hover:scale-105 transition-transform"
+                  className="flex-shrink-0 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center transition-transform"
                 >
-                  <Plus className="w-5 h-5 text-white" />
+                  <Plus className="w-5 h-5 text-zinc-100" />
                 </button>
               </div>
             ))}
@@ -2053,11 +2053,11 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {showHistory && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-zinc-950/95 overflow-y-auto">
           <div className="max-w-lg mx-auto p-4">
             <button
               onClick={() => setShowHistory(false)}
-              className="flex items-center gap-2 text-slate-400 hover:text-white my-4 transition-colors text-sm"
+              className="flex items-center gap-2 text-zinc-400 hover:text-zinc-100 my-4 transition-colors text-sm"
             >
               <ChevronLeft className="w-4 h-4" />
               Back to party
@@ -2105,34 +2105,34 @@ function HostDashboard({ hostUid, onCreateNew, onOpenRoom }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+    <div className="min-h-screen bg-zinc-950 p-4">
       <div className="max-w-lg mx-auto py-10">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Crown className="w-10 h-10 text-white" />
+          <div className="w-20 h-20 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Crown className="w-10 h-10 text-zinc-100" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Welcome back</h1>
+          <h1 className="text-2xl font-medium text-zinc-100">Welcome back</h1>
         </div>
 
         <button
           onClick={onCreateNew}
-          className="w-full py-5 mb-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xl rounded-2xl hover:from-purple-500 hover:to-pink-500 transition-all duration-300 shadow-lg shadow-purple-500/30 flex items-center justify-center gap-3"
+          className="w-full py-5 mb-8 bg-indigo-500 text-zinc-100 font-medium text-xl rounded-2xl hover:bg-indigo-400 transition-all duration-300 flex items-center justify-center gap-3"
         >
           <Music className="w-6 h-6" />
           Start New Party
         </button>
 
-        <h2 className="text-slate-400 font-semibold text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
+        <h2 className="text-zinc-400 font-semibold text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
           <Clock className="w-4 h-4" />
           History
         </h2>
 
         {loading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+            <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
           </div>
         ) : rooms.length === 0 ? (
-          <p className="text-slate-500 text-sm italic">No past parties yet.</p>
+          <p className="text-zinc-500 text-sm italic">No past parties yet.</p>
         ) : (
           <div className="space-y-3">
             {rooms.map((room) => {
@@ -2141,13 +2141,13 @@ function HostDashboard({ hostUid, onCreateNew, onOpenRoom }) {
                 <button
                   key={room.id}
                   onClick={() => handleReopen(room)}
-                  className="w-full text-left bg-slate-800/60 rounded-2xl p-4 border border-slate-700/50 hover:border-purple-500/40 transition-colors flex items-center justify-between gap-4"
+                  className="w-full text-left bg-zinc-900/80 rounded-2xl p-4 border border-zinc-800/50 hover:border-indigo-500/30 transition-colors flex items-center justify-between gap-4"
                 >
                   <div className="min-w-0">
-                    <p className="text-white font-medium truncate">{room.name || room.id}</p>
-                    <p className="text-slate-500 text-xs font-mono mt-0.5">{room.id}</p>
+                    <p className="text-zinc-100 font-medium truncate">{room.name || room.id}</p>
+                    <p className="text-zinc-500 text-xs font-mono mt-0.5">{room.id}</p>
                   </div>
-                  <span className={`px-2 py-0.5 text-xs rounded-full border flex-shrink-0 ${live ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-slate-700/50 text-slate-400 border-slate-600/50'}`}>
+                  <span className={`px-2 py-0.5 text-xs rounded-full border flex-shrink-0 ${live ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-zinc-800/50 text-zinc-400 border-zinc-700/50'}`}>
                     {live ? 'Live' : 'Archived'}
                   </span>
                 </button>
@@ -2282,8 +2282,8 @@ function App() {
 
   if (view === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
       </div>
     );
   }
