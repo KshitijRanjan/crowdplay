@@ -1391,24 +1391,6 @@ function GuestView({ userId, roomCode, onLeave }) {
           </div>
         )}
 
-        {nowPlaying && (
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <Play className="w-5 h-5 text-green-400" />
-              Now Playing
-            </h2>
-            <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
-              <div className="flex items-center gap-4">
-                <img src={nowPlaying.thumbnailUrl} alt={nowPlaying.title} className="w-20 h-20 rounded-2xl object-cover" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-zinc-100 font-medium text-lg truncate">{nowPlaying.title}</p>
-                  <p className="text-indigo-300 text-sm truncate">{nowPlaying.channelTitle}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {!nowPlaying && upNext.length === 0 && searchResults.length === 0 && (
           <div className="text-center py-16">
             <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -1527,7 +1509,7 @@ function GuestView({ userId, roomCode, onLeave }) {
 // ============================================================================
 // SORTABLE UP NEXT ROW (drag-and-drop, host only)
 // ============================================================================
-function SortableUpNextRow({ song, index, handleDeleteSong }) {
+function SortableUpNextRow({ song, index, handleDeleteSong, handleUpvote, hostUid }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id });
 
   const style = {
@@ -1570,13 +1552,13 @@ function SortableUpNextRow({ song, index, handleDeleteSong }) {
         <p className="text-zinc-500 text-xs truncate">{song.channelTitle}</p>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
-        <div
-          className={`flex items-center gap-1 px-2 py-1 rounded-full ${song.upvotes?.length ? 'bg-indigo-500/20 text-indigo-300' : 'bg-zinc-800 text-zinc-500'}`}
-          title="Upvotes"
+        <button
+          onClick={() => handleUpvote(song)}
+          className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(hostUid) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
         >
           <ArrowUpCircle className="w-4 h-4" />
           <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
-        </div>
+        </button>
         <button
           onClick={() => handleDeleteSong(song.id)}
           className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
@@ -1936,6 +1918,19 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     } catch (e) {
       console.error('Delete song error:', e);
       setToast({ message: 'Failed to delete song', type: 'error' });
+    }
+  };
+
+  const handleUpvote = async (song) => {
+    try {
+      const isVoted = song.upvotes?.includes(hostUid);
+      await updateDoc(roomDocRef(song.id), {
+        upvotes: isVoted ? arrayRemove(hostUid) : arrayUnion(hostUid),
+      });
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
+    } catch (e) {
+      console.error('Upvote error:', e);
+      setToast({ message: 'Failed to update vote', type: 'error' });
     }
   };
 
@@ -2358,7 +2353,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 <SortableContext items={upNext.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                   <div className="space-y-2">
                     {upNext.map((song, index) => (
-                      <SortableUpNextRow key={song.id} song={song} index={index} handleDeleteSong={handleDeleteSong} />
+                      <SortableUpNextRow key={song.id} song={song} index={index} handleDeleteSong={handleDeleteSong} handleUpvote={handleUpvote} hostUid={hostUid} />
                     ))}
                   </div>
                 </SortableContext>
