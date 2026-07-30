@@ -21,6 +21,7 @@ This spec covers all three because history/reopen (gap 2) depends on a stable pe
 - Replace fixed 12h room expiry with a rolling-inactivity-or-manual-end model, computed client-side (no Cloud Functions — free tier constraint).
 - Give hosts a history of every room they've created, and let them reopen an archived room with its queue intact.
 - Add a Web-Share-API based share button for the room join link (PIN still entered manually by the guest).
+- Let guests pick a display name on join, shown as attribution on the songs they add.
 
 ## Non-goals
 
@@ -113,15 +114,37 @@ if (navigator.share) {
 - The link carries only the room code via the existing `/join/:code` route (already wired to prefill `GuestJoinForm`'s room-code field) — the PIN is never included. Guest opens the link, sees the code pre-filled, and still types the PIN.
 - Browsers without `navigator.share` (some desktop browsers) fall back to the existing copy-to-clipboard pattern already used for the PIN, with the existing toast confirmation.
 
+## 5. Guest Display Names
+
+Today guests are fully anonymous — queue docs store `addedBy: userId` (an opaque uid), so there's no way to show who suggested a song. Adding a name field closes that.
+
+**`GuestJoinForm`** gains a third required field, "Your name" (text, same length/validation convention as the existing name field in `RequestAccessForm`), alongside room code and PIN.
+
+**Storage:** the name is written once, at join time, to `rooms/{roomCode}/roles/{uid}` as `{ role: 'guest', name }` — same doc, no new write. It's also cached in `sessionStorage` (alongside the existing `pinVerified`/`userRole`/`roomCode` keys) so it survives a page refresh without a re-read.
+
+**Attribution on songs:** rather than looking up `roles/{uid}` for every song at render time (extra reads, extra complexity), the guest's name is snapshotted directly onto the queue doc when they add a song: `addedByName: guestName` alongside the existing `addedBy: userId`. This is a point-in-time snapshot — if a guest somehow rejoins under a different name, previously-added songs keep showing the name they used at the time, which is the expected/honest behavior.
+
+Host-added and playlist-seeded songs keep using `addedBy: 'host'` / `addedBy: 'host-seed'` exactly as today; the UI falls back to "Host" / "Playlist import" for those two cases rather than expecting an `addedByName`.
+
+**Display:** `QueueSidebar` and `GuestView`'s "Up Next" list show `addedByName` (or the host/import fallback) as a small caption under the song title, next to the existing channel-title line.
+
+**No Firestore rules change required** — the existing `queue` create rule's `hasAll([...])` check lists required keys but doesn't forbid extra ones, so `addedByName` needs no rule update. The `roles` create rule already permits arbitrary payload shape for the guest's own uid.
+
+**Not included:** who-upvoted attribution (upvotes stay a plain array of uids, no names) — not asked for, and would add complexity (a parallel name map) for no stated need. Can be a follow-up if wanted later.
+
 ## Data model (final)
 
 ```
 rooms/{roomCode}
-  hostUid, hostEmail, guestPin, name        # name is new, required
+  hostUid, hostEmail, guestPin, name        # name is new, required (room name)
   createdAt, lastActivityAt                  # expiresAt removed
   endedByHost: boolean                       # replaces status: 'active' | 'expired'
-  rooms/{roomCode}/queue/{docId}             # unchanged
-  rooms/{roomCode}/roles/{uid}                # unchanged
+  rooms/{roomCode}/queue/{docId}
+    ...existing fields, plus:
+    addedByName: string                      # new — guest's display name, or 'host'/'host-seed' fallback in UI
+  rooms/{roomCode}/roles/{uid}
+    role: 'host' | 'guest'
+    name: string                             # new — guest's chosen display name (host role docs unaffected)
 ```
 
 `hostRequests/{email}` and `approvedHosts/{email}` docs are unchanged in shape — no password field, nothing new to store; identity lives entirely in Firebase Auth via Google.
