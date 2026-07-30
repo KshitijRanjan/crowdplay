@@ -428,9 +428,6 @@ function HostLoginForm({ onBack, onSuccess }) {
 // ============================================================================
 // CREATE ROOM FORM
 // ============================================================================
-// ============================================================================
-// CREATE ROOM FORM
-// ============================================================================
 function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
   const [roomName, setRoomName] = useState('');
   const [guestPin, setGuestPin] = useState('');
