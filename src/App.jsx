@@ -21,6 +21,9 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Search,
   Plus,
@@ -36,6 +39,7 @@ import {
   Pause,
   SkipBack,
   Trash2,
+  GripVertical,
   Menu,
   ChevronUp,
   ChevronDown,
@@ -135,7 +139,6 @@ function sortPendingQueue(songs) {
   return result;
 }
 
-// eslint-disable-next-line no-unused-vars
 function computeDropOrder(prevNeighbor, nextNeighbor) {
   const GAP = 60000;
   const prevOrder = prevNeighbor ? effectiveOrder(prevNeighbor) : (nextNeighbor ? effectiveOrder(nextNeighbor) - GAP * 2 : Date.now());
@@ -1315,6 +1318,54 @@ function GuestView({ userId, roomCode, onLeave }) {
 }
 
 // ============================================================================
+// SORTABLE UP NEXT ROW (drag-and-drop, host only)
+// ============================================================================
+function SortableUpNextRow({ song, index, handleDeleteSong }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 bg-zinc-900/60 rounded-xl p-2 border border-zinc-800/50 group"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="p-1.5 text-zinc-600 hover:text-zinc-300 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center text-xs text-zinc-500 font-medium">{index + 1}</span>
+      <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+        <p className="text-zinc-500 text-xs truncate">
+          {song.channelTitle}
+          {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
+        </p>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          onClick={() => handleDeleteSong(song.id)}
+          className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
+          title="Delete"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // HOST VIEW COMPONENT
 // ============================================================================
 function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRoom }) {
@@ -1341,6 +1392,10 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const [showImport, setShowImport] = useState(false);
 
   const isInitialLoad = useRef(true);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  );
   const transitionTriggeredRef = useRef(false);
 
   useEffect(() => {
@@ -1639,6 +1694,24 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     } catch (e) {
       console.error('Delete song error:', e);
       setToast({ message: 'Failed to delete song', type: 'error' });
+    }
+  };
+
+  const handleReorderSong = async (songId, newIndex, currentUpNext) => {
+    try {
+      const reordered = arrayMove(currentUpNext, currentUpNext.findIndex((s) => s.id === songId), newIndex);
+      const draggedIndex = reordered.findIndex((s) => s.id === songId);
+      const prevNeighbor = draggedIndex > 0 ? reordered[draggedIndex - 1] : null;
+      const nextNeighbor = draggedIndex < reordered.length - 1 ? reordered[draggedIndex + 1] : null;
+      const newOrder = computeDropOrder(
+        prevNeighbor && prevNeighbor.id !== songId ? prevNeighbor : null,
+        nextNeighbor && nextNeighbor.id !== songId ? nextNeighbor : null
+      );
+      await updateDoc(roomDocRef(songId), { order: newOrder, manuallyPositioned: true });
+      bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
+    } catch (e) {
+      console.error('Reorder song error:', e);
+      setToast({ message: 'Failed to reorder song.', type: 'error' });
     }
   };
 
@@ -1995,30 +2068,24 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 <p className="text-zinc-400 text-sm">Search above to add the first song</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {upNext.map((song, index) => (
-                  <div key={song.id} className="flex items-center gap-3 bg-zinc-900/60 rounded-xl p-2 border border-zinc-800/50 group">
-                    <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center text-xs text-zinc-500 font-medium">{index + 1}</span>
-                    <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
-                      <p className="text-zinc-500 text-xs truncate">
-                        {song.channelTitle}
-                        {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => handleDeleteSong(song.id)}
-                        className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              <DndContext
+                sensors={dndSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => {
+                  const { active, over } = event;
+                  if (!over || active.id === over.id) return;
+                  const newIndex = upNext.findIndex((s) => s.id === over.id);
+                  handleReorderSong(active.id, newIndex, upNext);
+                }}
+              >
+                <SortableContext items={upNext.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {upNext.map((song, index) => (
+                      <SortableUpNextRow key={song.id} song={song} index={index} handleDeleteSong={handleDeleteSong} />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             )
           ) : (
             playedHistory.length === 0 ? (
