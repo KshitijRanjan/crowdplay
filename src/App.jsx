@@ -213,7 +213,7 @@ function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-12">
           <div className="w-24 h-24 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Music className="w-12 h-12 text-zinc-100" />
+            <Crown className="w-12 h-12 text-zinc-100" />
           </div>
           <h1 className="text-4xl font-medium text-zinc-100 mb-2">CrowdPlay</h1>
           <p className="text-zinc-400">Shared music for your crew</p>
@@ -1174,7 +1174,7 @@ function GuestView({ userId, roomCode, onLeave }) {
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center">
-              <Music className="w-5 h-5 text-zinc-100" />
+              <Crown className="w-5 h-5 text-zinc-100" />
             </div>
             <div>
               <h1 className="text-xl font-medium text-zinc-100">CrowdPlay</h1>
