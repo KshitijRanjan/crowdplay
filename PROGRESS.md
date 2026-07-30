@@ -1,4 +1,4 @@
-# Progress — Party Playlist
+# Progress — CrowdPlay
 
 Draft, based on git history, `docs/superpowers/` design docs, and code inspection. No TODO/FIXME comments found anywhere in `src/` — this codebase has none, so most status below is **inferred from git log + working code**, not from explicit markers. Correct freely.
 

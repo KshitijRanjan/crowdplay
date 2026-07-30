@@ -215,7 +215,7 @@ function LandingPage({ onHostParty, onJoinParty, onRequestAccess, onAdmin }) {
           <div className="w-24 h-24 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
             <Music className="w-12 h-12 text-zinc-100" />
           </div>
-          <h1 className="text-4xl font-medium text-zinc-100 mb-2">Party Playlist</h1>
+          <h1 className="text-4xl font-medium text-zinc-100 mb-2">CrowdPlay</h1>
           <p className="text-zinc-400">Shared music for your crew</p>
         </div>
 
@@ -1177,7 +1177,7 @@ function GuestView({ userId, roomCode, onLeave }) {
               <Music className="w-5 h-5 text-zinc-100" />
             </div>
             <div>
-              <h1 className="text-xl font-medium text-zinc-100">Party Playlist</h1>
+              <h1 className="text-xl font-medium text-zinc-100">CrowdPlay</h1>
               <p className="text-zinc-500 text-xs font-mono">{roomCode}</p>
             </div>
           </div>
@@ -1552,7 +1552,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     if (!('mediaSession' in navigator) || !currentSong) return;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentSong.title,
-      artist: currentSong.channelTitle || 'Party Playlist',
+      artist: currentSong.channelTitle || 'CrowdPlay',
       artwork: currentSong.thumbnailUrl ? [{ src: currentSong.thumbnailUrl, sizes: '480x360', type: 'image/jpeg' }] : [],
     });
     navigator.mediaSession.setActionHandler('play', () => playerRef.current?.playVideo());
@@ -1595,7 +1595,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     if (isInitialLoad.current) {
       let startSeconds = 0;
       try {
-        const saved = localStorage.getItem('party_playlist_progress');
+        const saved = localStorage.getItem('crowdplay_progress');
         if (saved) {
           const { videoId, timestamp, savedAt } = JSON.parse(saved);
           if (videoId === currentSong.videoId && (Date.now() - savedAt < 24 * 60 * 60 * 1000)) startSeconds = timestamp;
@@ -1645,7 +1645,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
             setProgress(current);
             setDuration(total);
             if (currentSong) {
-              localStorage.setItem('party_playlist_progress', JSON.stringify({ videoId: currentSong.videoId, timestamp: current, savedAt: Date.now() }));
+              localStorage.setItem('crowdplay_progress', JSON.stringify({ videoId: currentSong.videoId, timestamp: current, savedAt: Date.now() }));
             }
           }
         } catch (e) { void e; }
@@ -1807,7 +1807,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     const shareUrl = `${window.location.origin}/join/${roomCode}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `Join "${roomName || roomCode}" on Party Playlist`, url: shareUrl });
+        await navigator.share({ title: `Join "${roomName || roomCode}" on CrowdPlay`, url: shareUrl });
       } catch (e) {
         if (e.name !== 'AbortError') console.error('Share error:', e);
       }
@@ -1869,7 +1869,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 <Crown className="w-5 h-5 text-zinc-100" />
               </div>
               <div>
-                <h1 className="text-xl font-medium text-zinc-100">Party Playlist</h1>
+                <h1 className="text-xl font-medium text-zinc-100">CrowdPlay</h1>
                 <p className="text-zinc-400 text-xs">Host View</p>
               </div>
             </div>
