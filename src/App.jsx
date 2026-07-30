@@ -1164,6 +1164,8 @@ function GuestView({ userId, roomCode, onLeave }) {
   const [toast, setToast] = useState(null);
   const [queue, setQueue] = useState([]);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [guests, setGuests] = useState([]);
+  const [showGuestBar, setShowGuestBar] = useState(false);
 
   useEffect(() => {
     const q = query(
@@ -1181,6 +1183,19 @@ function GuestView({ userId, roomCode, onLeave }) {
 
     return () => unsubscribe();
   }, [roomCode]);
+
+  useEffect(() => {
+    const rolesQuery = query(collection(db, 'rooms', roomCode, 'roles'));
+    const unsubscribe = onSnapshot(rolesQuery, (snapshot) => {
+      const guestsList = snapshot.docs
+        .map((d) => ({ uid: d.id, ...d.data() }))
+        .filter((g) => g.role === 'guest' && g.uid !== userId);
+      setGuests(guestsList);
+    }, (error) => {
+      console.error('Guests listener error:', error);
+    });
+    return () => unsubscribe();
+  }, [roomCode, userId]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -1277,7 +1292,7 @@ function GuestView({ userId, roomCode, onLeave }) {
   return (
     <div className="min-h-screen bg-zinc-950">
       <header className="sticky top-0 z-40 bg-zinc-950/90 border-b border-zinc-800/50 px-4 py-4">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
+        <div className="flex items-center justify-between max-w-lg mx-auto mb-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center">
               <Crown className="w-5 h-5 text-zinc-100" />
@@ -1304,6 +1319,21 @@ function GuestView({ userId, roomCode, onLeave }) {
             </button>
           </div>
         </div>
+        {guests.length > 0 && (
+          <div className="overflow-x-auto scrollbar-hide">
+            <div className="flex gap-2 pb-1">
+              {guests.slice(0, 7).map((g) => (
+                <div key={g.uid} className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold" style={{
+                  backgroundColor: g.color || '#6366f1',
+                  color: g.color ? '#000' : '#fff'
+                }}>
+                  {g.avatar ? g.avatar : '👤'}
+                </div>
+              ))}
+              {guests.length > 7 && <div className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs text-zinc-400">+{guests.length - 7}</div>}
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
@@ -1430,6 +1460,62 @@ function GuestView({ userId, roomCode, onLeave }) {
         handleUpvote={handleUpvote}
       />
 
+      {/* Guest bottom player bar */}
+      {showGuestBar && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-30" onClick={() => setShowGuestBar(false)} />
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 border-t border-zinc-800 p-4 max-h-96 overflow-y-auto">
+            <div className="max-w-lg mx-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-zinc-100">Queue</h2>
+                <button onClick={() => setShowGuestBar(false)} className="text-zinc-400 hover:text-zinc-100">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {upNext.map((song, idx) => (
+                  <div key={song.id} className="flex items-center gap-3 bg-zinc-900/60 rounded-lg p-2 border border-zinc-800/30">
+                    <span className="text-xs text-zinc-500 w-4">{idx + 1}</span>
+                    <img src={song.thumbnailUrl} alt={song.title} className="w-10 h-10 rounded object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {(() => {
+                          const attr = attributionLabel(song);
+                          if (!attr) return null;
+                          if (attr.type === 'avatar') return <span className="text-xs">{attr.value}</span>;
+                          if (attr.type === 'color') return <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: attr.value }} />;
+                          return <span className="text-zinc-600 text-xs">{attr.value}</span>;
+                        })()}
+                        <p className="text-zinc-100 text-xs font-medium truncate">{song.title}</p>
+                      </div>
+                      <p className="text-zinc-500 text-xs truncate">{song.channelTitle}</p>
+                    </div>
+                    <button onClick={() => handleUpvote(song)} className={`flex-shrink-0 flex items-center justify-center w-6 h-6 rounded text-xs ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                      {song.upvotes?.length || 0}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {nowPlaying && !showGuestBar && (
+        <div onClick={() => setShowGuestBar(true)} className="fixed bottom-0 left-0 right-0 z-30 bg-zinc-950 border-t border-zinc-800 p-3 cursor-pointer hover:bg-zinc-900/50 transition-colors">
+          <div className="max-w-lg mx-auto flex items-center gap-3">
+            <img src={nowPlaying.thumbnailUrl} alt={nowPlaying.title} className="w-12 h-12 rounded object-cover flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-zinc-100 text-sm font-medium truncate">{nowPlaying.title}</p>
+              <p className="text-zinc-500 text-xs truncate">{nowPlaying.channelTitle}</p>
+            </div>
+            <button onClick={(e) => { e.stopPropagation(); handleUpvote(nowPlaying); }} className={`flex-shrink-0 w-8 h-8 rounded flex items-center justify-center transition-colors ${nowPlaying.upvotes?.includes(userId) ? 'bg-indigo-500 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
+              <ArrowUpCircle className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
@@ -1518,6 +1604,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [guests, setGuests] = useState([]);
 
   const isInitialLoad = useRef(true);
   const dndSensors = useSensors(
@@ -1759,6 +1846,19 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     });
     return () => unsubscribe();
   }, [currentSong, roomCode]);
+
+  useEffect(() => {
+    const rolesQuery = query(collection(db, 'rooms', roomCode, 'roles'));
+    const unsubscribe = onSnapshot(rolesQuery, (snapshot) => {
+      const guestsList = snapshot.docs
+        .map((d) => ({ uid: d.id, ...d.data() }))
+        .filter((g) => g.role === 'guest' && g.uid !== hostUid);
+      setGuests(guestsList);
+    }, (error) => {
+      console.error('Guests listener error:', error);
+    });
+    return () => unsubscribe();
+  }, [roomCode, hostUid]);
 
   useEffect(() => {
     if (!playerRef.current) return;
@@ -2067,6 +2167,22 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
               >
                 <ChevronDown className="w-4 h-4" />
               </button>
+            </div>
+          )}
+
+          {guests.length > 0 && (
+            <div className="mt-2 overflow-x-auto scrollbar-hide">
+              <div className="flex gap-2 pb-1">
+                {guests.slice(0, 7).map((g) => (
+                  <div key={g.uid} className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold" style={{
+                    backgroundColor: g.color || '#6366f1',
+                    color: g.color ? '#000' : '#fff'
+                  }}>
+                    {g.avatar ? g.avatar : '👤'}
+                  </div>
+                ))}
+                {guests.length > 7 && <div className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs text-zinc-400">+{guests.length - 7}</div>}
+              </div>
             </div>
           )}
 
