@@ -1292,18 +1292,30 @@ function GuestView({ userId, roomCode, onLeave }) {
   return (
     <div className="min-h-screen bg-zinc-950">
       <header className="sticky top-0 z-40 bg-zinc-950/90 border-b border-zinc-800/50 px-4 py-4">
-        <div className="flex items-center justify-between max-w-lg mx-auto mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center">
+        <div className="flex items-center justify-between max-w-lg mx-auto gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
               <Crown className="w-5 h-5 text-zinc-100" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-xl font-medium text-zinc-100">CrowdPlay</h1>
               <p className="text-zinc-500 text-xs font-mono">{roomCode}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-zinc-400 text-sm hidden sm:inline">{queue.length} in queue</span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {guests.length > 0 && (
+              <div className="flex items-center -space-x-1.5 mr-1">
+                {guests.slice(0, 5).map((g) => (
+                  <div key={g.uid} className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ring-2 ring-zinc-950 flex-shrink-0" style={{
+                    backgroundColor: g.color || '#6366f1',
+                    color: g.color ? '#000' : '#fff'
+                  }}>
+                    {g.avatar ? g.avatar : '👤'}
+                  </div>
+                ))}
+                {guests.length > 5 && <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-[9px] text-zinc-400 ring-2 ring-zinc-950 flex-shrink-0">+{guests.length - 5}</div>}
+              </div>
+            )}
             <button
               onClick={() => { if (window.confirm('Leave this party?')) onLeave(); }}
               className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-400 hover:text-red-400"
@@ -1319,21 +1331,6 @@ function GuestView({ userId, roomCode, onLeave }) {
             </button>
           </div>
         </div>
-        {guests.length > 0 && (
-          <div className="overflow-x-auto scrollbar-hide">
-            <div className="flex gap-2 pb-1">
-              {guests.slice(0, 7).map((g) => (
-                <div key={g.uid} className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold" style={{
-                  backgroundColor: g.color || '#6366f1',
-                  color: g.color ? '#000' : '#fff'
-                }}>
-                  {g.avatar ? g.avatar : '👤'}
-                </div>
-              ))}
-              {guests.length > 7 && <div className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs text-zinc-400">+{guests.length - 7}</div>}
-            </div>
-          </div>
-        )}
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-6 pb-32">
@@ -1430,7 +1427,7 @@ function GuestView({ userId, roomCode, onLeave }) {
       {showGuestBar && (
         <>
           <div className="fixed inset-0 bg-black/40 z-30" onClick={() => setShowGuestBar(false)} />
-          <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 border-t border-zinc-800 p-4 max-h-96 overflow-y-auto">
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 border-t border-zinc-800 p-4 max-h-[28rem] overflow-y-auto">
             <div className="max-w-lg mx-auto">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-semibold text-zinc-100">Queue</h2>
@@ -1438,6 +1435,33 @@ function GuestView({ userId, roomCode, onLeave }) {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {nowPlaying && (
+                <div className="mb-4">
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Play className="w-3 h-3 text-green-400" />
+                    Now Playing
+                  </p>
+                  <div className="flex items-center gap-3 bg-zinc-900 rounded-xl p-2.5 border border-zinc-800">
+                    <img src={nowPlaying.thumbnailUrl} alt={nowPlaying.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-zinc-100 text-sm font-medium truncate">{nowPlaying.title}</p>
+                      <p className="text-indigo-300 text-xs truncate">{nowPlaying.channelTitle}</p>
+                    </div>
+                    <button
+                      onClick={() => handleUpvote(nowPlaying)}
+                      className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${nowPlaying.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
+                    >
+                      <ArrowUpCircle className="w-4 h-4" />
+                      <span className="text-xs font-medium">{nowPlaying.upvotes?.length || 0}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {upNext.length > 0 && (
+                <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2">Up Next</p>
+              )}
               <div className="space-y-2">
                 {upNext.map((song, idx) => (
                   <div key={song.id} className="flex items-center gap-3 bg-zinc-900/60 rounded-lg p-2 border border-zinc-800/30">
@@ -1456,8 +1480,12 @@ function GuestView({ userId, roomCode, onLeave }) {
                       </div>
                       <p className="text-zinc-500 text-xs truncate">{song.channelTitle}</p>
                     </div>
-                    <button onClick={() => handleUpvote(song)} className={`flex-shrink-0 flex items-center justify-center w-6 h-6 rounded text-xs ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
-                      {song.upvotes?.length || 0}
+                    <button
+                      onClick={() => handleUpvote(song)}
+                      className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
+                    >
+                      <ArrowUpCircle className="w-4 h-4" />
+                      <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
                     </button>
                   </div>
                 ))}
@@ -1475,8 +1503,12 @@ function GuestView({ userId, roomCode, onLeave }) {
               <p className="text-zinc-100 text-sm font-medium truncate">{nowPlaying.title}</p>
               <p className="text-zinc-500 text-xs truncate">{nowPlaying.channelTitle}</p>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); handleUpvote(nowPlaying); }} className={`flex-shrink-0 w-8 h-8 rounded flex items-center justify-center transition-colors ${nowPlaying.upvotes?.includes(userId) ? 'bg-indigo-500 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleUpvote(nowPlaying); }}
+              className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${nowPlaying.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
+            >
               <ArrowUpCircle className="w-4 h-4" />
+              <span className="text-xs font-medium">{nowPlaying.upvotes?.length || 0}</span>
             </button>
           </div>
         </div>
@@ -2119,35 +2151,50 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 </div>
               </div>
               <p className="text-zinc-500 text-xs text-center mt-2">Scan to join — guests still need the PIN</p>
+
+              {guests.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-zinc-800/50">
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2 text-center">Guests ({guests.length})</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {guests.map((g) => (
+                      <div key={g.uid} className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0" style={{
+                        backgroundColor: g.color || '#6366f1',
+                        color: g.color ? '#000' : '#fff'
+                      }}>
+                        {g.avatar ? g.avatar : '👤'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="bg-zinc-900/80 rounded-2xl px-4 py-2.5 border border-zinc-800/40 flex items-center justify-between">
-              <p className="text-zinc-400 text-sm flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-white inline-block" />
-                Guests can join with PIN <span className="font-mono font-medium text-indigo-400">{guestPin}</span>
+            <div className="bg-zinc-900/80 rounded-2xl px-4 py-2.5 border border-zinc-800/40 flex items-center justify-between gap-3">
+              <p className="text-zinc-400 text-sm flex items-center gap-2 flex-shrink-0 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-white inline-block flex-shrink-0" />
+                <span className="truncate">Guests can join with PIN <span className="font-mono font-medium text-indigo-400">{guestPin}</span></span>
               </p>
-              <button
-                onClick={() => setPanelExpanded(true)}
-                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
-                title="Expand"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {guests.length > 0 && (
-            <div className="mt-2 overflow-x-auto scrollbar-hide">
-              <div className="flex gap-2 pb-1">
-                {guests.slice(0, 7).map((g) => (
-                  <div key={g.uid} className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold" style={{
-                    backgroundColor: g.color || '#6366f1',
-                    color: g.color ? '#000' : '#fff'
-                  }}>
-                    {g.avatar ? g.avatar : '👤'}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {guests.length > 0 && (
+                  <div className="flex items-center -space-x-1.5">
+                    {guests.slice(0, 5).map((g) => (
+                      <div key={g.uid} className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ring-2 ring-zinc-900 flex-shrink-0" style={{
+                        backgroundColor: g.color || '#6366f1',
+                        color: g.color ? '#000' : '#fff'
+                      }}>
+                        {g.avatar ? g.avatar : '👤'}
+                      </div>
+                    ))}
+                    {guests.length > 5 && <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-[9px] text-zinc-400 ring-2 ring-zinc-900 flex-shrink-0">+{guests.length - 5}</div>}
                   </div>
-                ))}
-                {guests.length > 7 && <div className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs text-zinc-400">+{guests.length - 7}</div>}
+                )}
+                <button
+                  onClick={() => setPanelExpanded(true)}
+                  className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
+                  title="Expand"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}
