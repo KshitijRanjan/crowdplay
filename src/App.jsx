@@ -1306,7 +1306,7 @@ function GuestView({ userId, roomCode }) {
 // ============================================================================
 // HOST VIEW COMPONENT
 // ============================================================================
-function HostView({ roomCode, guestPin, hostUid, onEndRoom, onSwitchRoom }) {
+function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRoom }) {
   const [queue, setQueue] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const queueRef = useRef([]);
@@ -1747,6 +1747,19 @@ function HostView({ roomCode, guestPin, hostUid, onEndRoom, onSwitchRoom }) {
     } catch (e) { void e; }
   };
 
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/join/${roomCode}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `Join "${roomName}" on Party Playlist`, url: shareUrl });
+      } catch (e) {
+        if (e.name !== 'AbortError') console.error('Share error:', e);
+      }
+    } else {
+      await copyToClipboard(shareUrl, () => setToast({ message: 'Link copied!', type: 'success' }));
+    }
+  };
+
   const handleEndRoom = async () => {
     if (!window.confirm('End this party? The room will close for all guests.')) return;
     try {
@@ -1826,8 +1839,16 @@ function HostView({ roomCode, guestPin, hostUid, onEndRoom, onSwitchRoom }) {
           {panelExpanded ? (
             <div className="bg-slate-800/60 rounded-2xl px-4 py-3 border border-slate-700/40">
               <div className="flex flex-wrap items-center justify-center gap-4">
-                <div className="bg-white p-2 rounded-xl flex-shrink-0">
-                  <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={128} />
+                <div className="flex flex-col items-center gap-2 flex-shrink-0">
+                  <div className="bg-white p-2 rounded-xl">
+                    <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={128} />
+                  </div>
+                  <button
+                    onClick={handleShare}
+                    className="text-xs text-purple-300 hover:text-purple-200 transition-colors flex items-center gap-1"
+                  >
+                    Share link
+                  </button>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-center">
@@ -2334,6 +2355,7 @@ function App() {
     return (
       <HostView
         roomCode={currentRoom.roomCode}
+        roomName={currentRoom.roomName}
         guestPin={currentRoom.guestPin}
         hostUid={hostUid}
         onEndRoom={handleEndRoom}
