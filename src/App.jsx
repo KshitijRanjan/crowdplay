@@ -1501,7 +1501,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     if (!currentSong) return;
     const batch = writeBatch(db);
     batch.update(doc(db, 'rooms', roomCode, 'queue', currentSong.id), { status: 'played' });
-    const nextSong = queueRef.current.filter((s) => s.status === 'pending')[0];
+    const nextSong = sortPendingQueue(queueRef.current.filter((s) => s.status === 'pending'))[0];
     if (nextSong) {
       batch.update(doc(db, 'rooms', roomCode, 'queue', nextSong.id), { status: 'playing' });
     } else {
@@ -1660,7 +1660,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     playerRef.current?.stopVideo?.();
     const batch = writeBatch(db);
     batch.update(roomDocRef(currentSong.id), { status: 'played' });
-    const nextSong = queue.filter((s) => s.status === 'pending')[0];
+    const nextSong = sortPendingQueue(queue.filter((s) => s.status === 'pending'))[0];
     if (nextSong) {
       batch.update(roomDocRef(nextSong.id), { status: 'playing' });
     } else {
@@ -1677,7 +1677,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       const currentTime = playerRef.current.getCurrentTime();
       if (currentTime > 10) { playerRef.current.seekTo(0); return; }
     }
-    const playedSongs = queue.filter((s) => s.status === 'played');
+    const playedSongs = queue.filter((s) => s.status === 'played').sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
     if (playedSongs.length === 0) return;
     const lastPlayed = playedSongs[playedSongs.length - 1];
     if (currentSong) await updateDoc(roomDocRef(currentSong.id), { status: 'pending' });
