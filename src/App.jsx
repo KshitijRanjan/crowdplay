@@ -48,6 +48,7 @@ import {
   UserPlus,
   LogIn,
   LogOut,
+  Home,
   ChevronLeft,
   Shield,
   Copy,
@@ -1509,13 +1510,24 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   }, [currentSong, roomCode]);
 
   const onStateChangeRef = useRef(null);
+  const onErrorRef = useRef(null);
 
   const handlePlayerStateChange = useCallback((event) => {
     if (event.data === 0) handleSongEnded();
     setIsPlaying(event.data === 1);
   }, [handleSongEnded]);
 
+  const handlePlayerError = useCallback((event) => {
+    // 2 = invalid id, 5 = HTML5 player error, 100 = video not found/removed,
+    // 101/150 = embedding disabled by the uploader. Player just sits stuck
+    // with no other signal, so surface it and skip to the next song.
+    console.error('YouTube player error:', event.data, 'song:', currentSong?.title);
+    setToast({ message: `Couldn't play "${currentSong?.title || 'this song'}" — skipping.`, type: 'error' });
+    handleSongEnded();
+  }, [currentSong, handleSongEnded]);
+
   useEffect(() => { onStateChangeRef.current = handlePlayerStateChange; }, [handlePlayerStateChange]);
+  useEffect(() => { onErrorRef.current = handlePlayerError; }, [handlePlayerError]);
 
   useEffect(() => {
     if (!('wakeLock' in navigator)) return;
@@ -1560,6 +1572,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0 },
       events: {
         onStateChange: (event) => { if (onStateChangeRef.current) onStateChangeRef.current(event); },
+        onError: (event) => { if (onErrorRef.current) onErrorRef.current(event); },
         onReady: () => setPlayerInstanceReady(true),
       },
     });
@@ -1863,10 +1876,10 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowHistory(true)}
-                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 border border-zinc-700/50 hover:bg-zinc-800/30 rounded-lg transition-colors flex items-center gap-1.5"
+                className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100"
+                title="Home"
               >
-                <Clock className="w-3.5 h-3.5" />
-                History
+                <Home className="w-5 h-5" />
               </button>
               <button
                 onClick={handleEndRoom}
