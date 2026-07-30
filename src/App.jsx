@@ -537,6 +537,7 @@ function CreateRoomForm({ hostUid, hostEmail, onRoomCreated }) {
 // ============================================================================
 function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
   const [roomCode, setRoomCode] = useState(prefilledCode.toUpperCase());
+  const [guestName, setGuestName] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -576,16 +577,18 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
       }
 
       const uid = auth.currentUser.uid;
+      const trimmedName = guestName.trim();
 
       const roleRef = doc(db, 'rooms', code, 'roles', uid);
       const existingRole = await getDoc(roleRef);
       if (!existingRole.exists()) {
-        await setDoc(roleRef, { role: 'guest' });
+        await setDoc(roleRef, { role: 'guest', name: trimmedName });
       }
 
       sessionStorage.setItem('pinVerified', 'true');
       sessionStorage.setItem('userRole', 'guest');
       sessionStorage.setItem('roomCode', code);
+      sessionStorage.setItem('guestName', trimmedName);
 
       onSuccess(uid, code);
     } catch (err) {
@@ -612,6 +615,19 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Your Name</label>
+            <input
+              type="text"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              placeholder="e.g. Priya"
+              maxLength={30}
+              required
+              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
           <div>
             <label className="text-slate-400 text-xs uppercase tracking-wider mb-2 block">Room Code</label>
             <input
@@ -649,7 +665,7 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
 
           <button
             type="submit"
-            disabled={loading || roomCode.length !== 6 || pin.length !== 4}
+            disabled={loading || !guestName.trim() || roomCode.length !== 6 || pin.length !== 4}
             className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl disabled:opacity-50 hover:from-purple-500 hover:to-pink-500 transition-all duration-300"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Join Party'}
