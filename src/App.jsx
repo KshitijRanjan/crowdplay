@@ -964,19 +964,11 @@ function AdminFlow({ onBack }) {
 // ============================================================================
 // QUEUE SIDEBAR COMPONENT
 // ============================================================================
-function QueueSidebar({
-  showSidebar,
-  setShowSidebar,
-  queue,
-  handlePlayNext,
-  handleDeleteSong,
-  handleRestoreSong,
-  isHost,
-  userId,
-  handleUpvote,
-}) {
-  const upNext = queue.filter((s) => s.status === 'pending');
-  const playedHistory = queue.filter((s) => s.status === 'played');
+function QueueSidebar({ showSidebar, setShowSidebar, queue, userId, handleUpvote }) {
+  const upNext = sortPendingQueue(queue.filter((s) => s.status === 'pending'));
+  const playedHistory = queue
+    .filter((s) => s.status === 'played')
+    .sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
 
   return (
     <>
@@ -1022,34 +1014,15 @@ function QueueSidebar({
                   </p>
                 </div>
 
-                {isHost ? (
-                  <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handlePlayNext(song)}
-                      className={`p-1.5 hover:bg-zinc-800 rounded-full transition-colors ${song.isPriority ? 'text-green-400' : 'text-blue-400 hover:text-blue-300'}`}
-                      title="Play Next"
-                    >
-                      <ArrowUpCircle className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSong(song.id)}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleUpvote(song)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
-                    >
-                      <ArrowUpCircle className="w-4 h-4" />
-                      <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleUpvote(song)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
+                  >
+                    <ArrowUpCircle className="w-4 h-4" />
+                    <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -1065,15 +1038,6 @@ function QueueSidebar({
                   <div className="flex-1 min-w-0">
                     <p className="text-zinc-400 text-sm font-medium truncate">{song.title}</p>
                   </div>
-                  {isHost && handleRestoreSong && (
-                    <button
-                      onClick={() => handleRestoreSong(song)}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-green-400 transition-colors flex-shrink-0"
-                      title="Add back to queue"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
               ))}
             </div>
@@ -1342,7 +1306,6 @@ function GuestView({ userId, roomCode, onLeave }) {
         showSidebar={showSidebar}
         setShowSidebar={setShowSidebar}
         queue={queue}
-        isHost={false}
         userId={userId}
         handleUpvote={handleUpvote}
       />
