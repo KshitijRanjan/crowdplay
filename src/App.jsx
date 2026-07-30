@@ -1407,40 +1407,6 @@ function GuestView({ userId, roomCode, onLeave }) {
           </div>
         )}
 
-        {upNext.length > 0 && (
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <SkipForward className="w-5 h-5 text-zinc-400" />
-              Up Next ({upNext.length})
-            </h2>
-            <div className="space-y-3">
-              {upNext.map((song, index) => (
-                <div key={song.id} className="flex items-center gap-4 bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800/30">
-                  <div className="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-400 font-medium text-sm">{index + 1}</div>
-                  <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const attr = attributionLabel(song);
-                        if (!attr) return null;
-                        if (attr.type === 'avatar') {
-                          return <span className="text-xs flex-shrink-0">{attr.value}</span>;
-                        } else if (attr.type === 'color') {
-                          return <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.value }} />;
-                        } else {
-                          return <span className="text-zinc-500 text-xs flex-shrink-0">{attr.value}</span>;
-                        }
-                      })()}
-                      <p className="text-zinc-100 font-medium truncate text-sm">{song.title}</p>
-                    </div>
-                    <p className="text-zinc-400 text-xs truncate">{song.channelTitle}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {!nowPlaying && upNext.length === 0 && searchResults.length === 0 && (
           <div className="text-center py-16">
             <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
