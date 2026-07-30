@@ -1850,13 +1850,13 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     .reverse();
 
   return (
-    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-zinc-950 flex flex-col">
       <div className="absolute" style={{ width: 1, height: 1, overflow: 'hidden' }}>
         <div id="youtube-player" ref={playerContainerRef}></div>
       </div>
 
       {/* Header */}
-      <header className="shrink min-h-0 overflow-y-auto bg-zinc-950/80 border-b border-zinc-800/50 px-4 py-3">
+      <header className="bg-zinc-950/80 border-b border-zinc-800/50 px-4 py-3">
         <div className="max-w-4xl mx-auto">
           {/* Top row */}
           <div className="flex items-center justify-between mb-3">
@@ -2012,7 +2012,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 min-h-0 overflow-y-auto px-4 py-6 pb-4">
+      <main className="flex-1 px-4 py-6 pb-4">
         <div className="max-w-2xl mx-auto">
           {/* Search results */}
           {searchResults.length > 0 && (
@@ -2121,7 +2121,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
 
       {/* Persistent player bar */}
       {currentSong && (
-        <div className="flex-shrink-0 border-t border-zinc-800/50 bg-zinc-950/95 px-4 py-2.5">
+        <div className="sticky bottom-0 z-40 border-t border-zinc-800/50 bg-zinc-950/95 px-4 py-2.5">
           <div className="max-w-2xl mx-auto">
             <input
               type="range"
