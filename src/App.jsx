@@ -1275,8 +1275,9 @@ function GuestView({ userId, roomCode }) {
 // ============================================================================
 // HOST VIEW COMPONENT
 // ============================================================================
-function HostView({ roomCode, guestPin, onEndRoom }) {
+function HostView({ roomCode, guestPin, hostUid, onEndRoom, onSwitchRoom }) {
   const [queue, setQueue] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
   const queueRef = useRef([]);
   const [currentSong, setCurrentSong] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -1727,6 +1728,24 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
     }
   };
 
+  const handleSwitchRoom = async (room) => {
+    if (room.id === roomCode) { setShowHistory(false); return; }
+    if (!window.confirm('Reopening this party will end your current one. Continue?')) return;
+    try {
+      await updateDoc(doc(db, 'rooms', roomCode), { endedByHost: true });
+      await updateDoc(doc(db, 'rooms', room.id), {
+        lastActivityAt: serverTimestamp(),
+        endedByHost: false,
+      });
+      sessionStorage.setItem('roomCode', room.id);
+      setShowHistory(false);
+      onSwitchRoom({ roomCode: room.id, guestPin: room.guestPin, roomName: room.name });
+    } catch (err) {
+      console.error('Switch room error:', err);
+      setToast({ message: 'Failed to switch parties.', type: 'error' });
+    }
+  };
+
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
 
   return (
@@ -1750,6 +1769,13 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowHistory(true)}
+                className="px-3 py-1.5 text-xs text-slate-400 hover:text-white border border-slate-600/50 hover:bg-slate-700/30 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                History
+              </button>
               <button
                 onClick={handleEndRoom}
                 className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 border border-red-500/30 hover:bg-red-500/10 rounded-lg transition-colors"
@@ -1969,6 +1995,25 @@ function HostView({ roomCode, guestPin, onEndRoom }) {
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {showHistory && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 overflow-y-auto">
+          <div className="max-w-lg mx-auto p-4">
+            <button
+              onClick={() => setShowHistory(false)}
+              className="flex items-center gap-2 text-slate-400 hover:text-white my-4 transition-colors text-sm"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to party
+            </button>
+          </div>
+          <HostDashboard
+            hostUid={hostUid}
+            onCreateNew={() => setShowHistory(false)}
+            onOpenRoom={handleSwitchRoom}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -2259,7 +2304,9 @@ function App() {
       <HostView
         roomCode={currentRoom.roomCode}
         guestPin={currentRoom.guestPin}
+        hostUid={hostUid}
         onEndRoom={handleEndRoom}
+        onSwitchRoom={(room) => { setCurrentRoom(room); }}
       />
     );
   }
