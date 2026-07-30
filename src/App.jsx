@@ -211,6 +211,9 @@ function RequestAccessForm({ onBack, onSuccess }) {
     setLoading(true);
 
     try {
+      if (sessionStorage.getItem('userRole') === 'guest') {
+        clearSession();
+      }
       const result = await signInWithPopup(auth, googleProvider);
       const email = result.user.email.toLowerCase().trim();
       const name = result.user.displayName || email;
@@ -335,6 +338,9 @@ function HostLoginForm({ onBack, onSuccess }) {
     setLoading(true);
 
     try {
+      if (sessionStorage.getItem('userRole') === 'guest') {
+        clearSession();
+      }
       const result = await signInWithPopup(auth, googleProvider);
       const email = result.user.email.toLowerCase().trim();
 
