@@ -1160,6 +1160,7 @@ function GuestView({ userId, roomCode, onLeave }) {
   const guestColor = sessionStorage.getItem('guestColor');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [queue, setQueue] = useState([]);
@@ -1201,6 +1202,7 @@ function GuestView({ userId, roomCode, onLeave }) {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     setLoading(true);
+    setHasSearched(true);
     try {
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
       const searchRes = await fetch(searchUrl);
@@ -1345,26 +1347,29 @@ function GuestView({ userId, roomCode, onLeave }) {
               className="w-full pl-12 pr-4 py-4 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
-          <button
-            type="submit"
-            disabled={loading || !searchQuery.trim()}
-            className="w-full mt-3 py-4 bg-indigo-500 text-zinc-100 font-medium rounded-2xl disabled:opacity-50 hover:bg-indigo-400 transition-all duration-300"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Search'}
-          </button>
+          {hasSearched ? (
+            <button
+              type="button"
+              onClick={() => { setSearchResults([]); setSearchQuery(''); setHasSearched(false); }}
+              className="w-full mt-3 py-4 bg-zinc-800 text-zinc-100 font-medium rounded-2xl hover:bg-zinc-700 transition-all duration-300 flex items-center justify-center gap-2"
+            >
+              <X className="w-5 h-5" />
+              Clear
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading || !searchQuery.trim()}
+              className="w-full mt-3 py-4 bg-indigo-500 text-zinc-100 font-medium rounded-2xl disabled:opacity-50 hover:bg-indigo-400 transition-all duration-300"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Search'}
+            </button>
+          )}
         </form>
 
         {searchResults.length > 0 && (
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-zinc-100">Search Results</h2>
-              <button
-                onClick={() => { setSearchResults([]); setSearchQuery(''); }}
-                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
-              >
-                Clear
-              </button>
-            </div>
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4">Search Results</h2>
             <div className="space-y-3">
               {searchResults.map((song) => (
                 <div key={song.videoId} className="flex items-center gap-4 bg-zinc-900/80 rounded-2xl p-3 border border-zinc-800/50">
@@ -1564,7 +1569,14 @@ function SortableUpNextRow({ song, index, handleDeleteSong }) {
         </div>
         <p className="text-zinc-500 text-xs truncate">{song.channelTitle}</p>
       </div>
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <div
+          className={`flex items-center gap-1 px-2 py-1 rounded-full ${song.upvotes?.length ? 'bg-indigo-500/20 text-indigo-300' : 'bg-zinc-800 text-zinc-500'}`}
+          title="Upvotes"
+        >
+          <ArrowUpCircle className="w-4 h-4" />
+          <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
+        </div>
         <button
           onClick={() => handleDeleteSong(song.id)}
           className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
@@ -1601,6 +1613,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [guests, setGuests] = useState([]);
 
@@ -1959,6 +1972,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     e.preventDefault();
     if (!searchQuery.trim()) return;
     setSearchLoading(true);
+    setHasSearched(true);
     try {
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&videoCategoryId=10&maxResults=10&key=${YOUTUBE_API_KEY}`;
       const searchRes = await fetch(searchUrl);
@@ -2211,14 +2225,25 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 className="w-full pl-9 pr-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
               />
             </div>
-            <button
-              type="submit"
-              disabled={searchLoading || !searchQuery.trim()}
-              className="px-4 py-2.5 bg-indigo-500 text-zinc-100 font-semibold rounded-xl disabled:opacity-50 hover:bg-indigo-400 transition-all text-sm flex items-center gap-1.5"
-            >
-              {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              Search
-            </button>
+            {hasSearched ? (
+              <button
+                type="button"
+                onClick={() => { setSearchResults([]); setSearchQuery(''); setHasSearched(false); }}
+                className="px-4 py-2.5 bg-zinc-800 text-zinc-100 font-semibold rounded-xl hover:bg-zinc-700 transition-all text-sm flex items-center gap-1.5"
+              >
+                <X className="w-4 h-4" />
+                Clear
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={searchLoading || !searchQuery.trim()}
+                className="px-4 py-2.5 bg-indigo-500 text-zinc-100 font-semibold rounded-xl disabled:opacity-50 hover:bg-indigo-400 transition-all text-sm flex items-center gap-1.5"
+              >
+                {searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                Search
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowImport((v) => !v)}
@@ -2276,15 +2301,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
           {/* Search results */}
           {searchResults.length > 0 && (
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-zinc-400">Search Results</h2>
-                <button
-                  onClick={() => { setSearchResults([]); setSearchQuery(''); }}
-                  className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
-                >
-                  Clear
-                </button>
-              </div>
+              <h2 className="text-sm font-semibold text-zinc-400 mb-2">Search Results</h2>
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {searchResults.map((song) => (
                   <div key={song.videoId} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 border border-zinc-800/50">
