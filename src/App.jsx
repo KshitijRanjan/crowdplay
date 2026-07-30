@@ -1856,7 +1856,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       </div>
 
       {/* Header */}
-      <header className="flex-shrink-0 bg-zinc-950/80 border-b border-zinc-800/50 px-4 py-3">
+      <header className="shrink min-h-0 overflow-y-auto bg-zinc-950/80 border-b border-zinc-800/50 px-4 py-3">
         <div className="max-w-4xl mx-auto">
           {/* Top row */}
           <div className="flex items-center justify-between mb-3">
