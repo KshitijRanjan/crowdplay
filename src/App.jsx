@@ -555,6 +555,9 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
     const code = roomCode.toUpperCase().trim();
 
     try {
+      // Auth required before any Firestore read
+      await signInAnonymously(auth);
+
       const roomRef = doc(db, 'rooms', code);
       const roomDoc = await getDoc(roomRef);
 
@@ -578,7 +581,6 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
         return;
       }
 
-      await signInAnonymously(auth);
       const uid = auth.currentUser.uid;
 
       const roleRef = doc(db, 'rooms', code, 'roles', uid);
