@@ -40,7 +40,6 @@ import {
   SkipBack,
   Trash2,
   GripVertical,
-  Menu,
   ChevronUp,
   ChevronDown,
   X,
@@ -191,6 +190,16 @@ function isRoomLive(roomData) {
 
 function bumpRoomActivity(roomCode) {
   return updateDoc(doc(db, 'rooms', roomCode), { lastActivityAt: serverTimestamp() });
+}
+
+// Guests are considered "currently joined" only if their client sent a heartbeat
+// within this window. Heartbeats fire every GUEST_HEARTBEAT_INTERVAL_MS.
+const GUEST_ONLINE_WINDOW_MS = 45000;
+const GUEST_HEARTBEAT_INTERVAL_MS = 20000;
+
+function isGuestOnline(roleData, nowMs) {
+  const last = roleData.lastSeenAt?.toMillis ? roleData.lastSeenAt.toMillis() : 0;
+  return (nowMs - last) < GUEST_ONLINE_WINDOW_MS;
 }
 
 function clearSession() {
@@ -670,10 +679,12 @@ function GuestJoinForm({ onBack, onSuccess, prefilledCode = '' }) {
       const existingRole = await getDoc(roleRef);
       if (!existingRole.exists()) {
         if (avatar) {
-          await setDoc(roleRef, { role: 'guest', avatar });
+          await setDoc(roleRef, { role: 'guest', avatar, lastSeenAt: serverTimestamp() });
         } else {
-          await setDoc(roleRef, { role: 'guest', color });
+          await setDoc(roleRef, { role: 'guest', color, lastSeenAt: serverTimestamp() });
         }
+      } else {
+        await updateDoc(roleRef, { lastSeenAt: serverTimestamp() });
       }
 
       sessionStorage.setItem('pinVerified', 'true');
@@ -1056,103 +1067,6 @@ function AdminFlow({ onBack }) {
 }
 
 // ============================================================================
-// QUEUE SIDEBAR COMPONENT
-// ============================================================================
-function QueueSidebar({ showSidebar, setShowSidebar, queue, userId, handleUpvote }) {
-  const upNext = sortPendingQueue(queue.filter((s) => s.status === 'pending'));
-  const playedHistory = queue
-    .filter((s) => s.status === 'played')
-    .sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
-
-  return (
-    <>
-      <div
-        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${showSidebar ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => setShowSidebar(false)}
-      />
-      <aside
-        className={`fixed right-0 bg-zinc-950/95 border-l border-zinc-800/50 p-6 overflow-y-auto z-50 transform transition-transform duration-300 top-0 bottom-0 w-80 ${showSidebar ? 'translate-x-0' : 'translate-x-full'}`}
-      >
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-            <SkipForward className="w-5 h-5 text-indigo-400" />
-            Up Next ({upNext.length})
-          </h3>
-          <button
-            onClick={() => setShowSidebar(false)}
-            className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-zinc-400" />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {upNext.length === 0 ? (
-            <p className="text-zinc-500 text-sm italic">Queue is empty...</p>
-          ) : (
-            upNext.map((song, index) => (
-              <div key={song.id} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 group">
-                <span className="w-6 h-6 bg-zinc-800 rounded-full flex items-center justify-center text-xs text-zinc-400 font-medium flex-shrink-0">
-                  {index + 1}
-                </span>
-                <img
-                  src={song.thumbnailUrl}
-                  alt={song.title}
-                  className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const attr = attributionLabel(song);
-                      if (!attr) return null;
-                      if (attr.type === 'avatar') {
-                        return <span className="text-xs flex-shrink-0">{attr.value}</span>;
-                      } else if (attr.type === 'color') {
-                        return <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: attr.value }} />;
-                      } else {
-                        return <span className="text-zinc-500 text-xs flex-shrink-0">{attr.value}</span>;
-                      }
-                    })()}
-                    <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
-                  </div>
-                  <p className="text-zinc-400 text-xs truncate">{song.channelTitle}</p>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleUpvote(song)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
-                  >
-                    <ArrowUpCircle className="w-4 h-4" />
-                    <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {playedHistory.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-zinc-800/50 opacity-60 hover:opacity-100 transition-opacity">
-            <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-4">History</h3>
-            <div className="space-y-3">
-              {playedHistory.slice().reverse().map((song) => (
-                <div key={song.id} className="flex items-center gap-3 bg-zinc-900/60 rounded-xl p-2">
-                  <img src={song.thumbnailUrl} alt={song.title} className="w-10 h-10 rounded-lg object-cover grayscale" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-zinc-400 text-sm font-medium truncate">{song.title}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </aside>
-    </>
-  );
-}
-
-// ============================================================================
 // GUEST VIEW COMPONENT
 // ============================================================================
 function GuestView({ userId, roomCode, onLeave }) {
@@ -1164,8 +1078,8 @@ function GuestView({ userId, roomCode, onLeave }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [queue, setQueue] = useState([]);
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [guests, setGuests] = useState([]);
+  const [allGuests, setAllGuests] = useState([]);
+  const [nowTick, setNowTick] = useState(Date.now());
   const [showGuestBar, setShowGuestBar] = useState(false);
 
   useEffect(() => {
@@ -1191,12 +1105,27 @@ function GuestView({ userId, roomCode, onLeave }) {
       const guestsList = snapshot.docs
         .map((d) => ({ uid: d.id, ...d.data() }))
         .filter((g) => g.role === 'guest' && g.uid !== userId);
-      setGuests(guestsList);
+      setAllGuests(guestsList);
     }, (error) => {
       console.error('Guests listener error:', error);
     });
     return () => unsubscribe();
   }, [roomCode, userId]);
+
+  useEffect(() => {
+    const roleRef = doc(db, 'rooms', roomCode, 'roles', userId);
+    const heartbeat = () => updateDoc(roleRef, { lastSeenAt: serverTimestamp() }).catch((e) => console.error('Heartbeat failed:', e));
+    heartbeat();
+    const interval = setInterval(heartbeat, GUEST_HEARTBEAT_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [roomCode, userId]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(Date.now()), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const guests = allGuests.filter((g) => isGuestOnline(g, nowTick));
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -1325,12 +1254,6 @@ function GuestView({ userId, roomCode, onLeave }) {
             >
               <LogOut className="w-5 h-5" />
             </button>
-            <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
-            >
-              <Menu className="w-5 h-5 text-zinc-100" />
-            </button>
           </div>
         </div>
       </header>
@@ -1401,14 +1324,6 @@ function GuestView({ userId, roomCode, onLeave }) {
           </div>
         )}
       </main>
-
-      <QueueSidebar
-        showSidebar={showSidebar}
-        setShowSidebar={setShowSidebar}
-        queue={queue}
-        userId={userId}
-        handleUpvote={handleUpvote}
-      />
 
       {/* Guest bottom player bar */}
       {showGuestBar && (
@@ -1597,7 +1512,8 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const [searchLoading, setSearchLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [guests, setGuests] = useState([]);
+  const [allGuests, setAllGuests] = useState([]);
+  const [guestsTick, setGuestsTick] = useState(Date.now());
 
   const isInitialLoad = useRef(true);
   const dndSensors = useSensors(
@@ -1846,12 +1762,17 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       const guestsList = snapshot.docs
         .map((d) => ({ uid: d.id, ...d.data() }))
         .filter((g) => g.role === 'guest' && g.uid !== hostUid);
-      setGuests(guestsList);
+      setAllGuests(guestsList);
     }, (error) => {
       console.error('Guests listener error:', error);
     });
     return () => unsubscribe();
   }, [roomCode, hostUid]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setGuestsTick(Date.now()), 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!playerRef.current) return;
@@ -2085,6 +2006,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     .filter((s) => s.status === 'played')
     .sort((a, b) => effectiveOrder(a) - effectiveOrder(b))
     .reverse();
+  const guests = allGuests.filter((g) => isGuestOnline(g, guestsTick));
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col">
@@ -2126,7 +2048,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
           {/* Room info row — guests join using these */}
           {panelExpanded ? (
             <div className="bg-zinc-900/80 rounded-2xl px-4 py-3 border border-zinc-800/40">
-              <div className="flex flex-wrap items-center justify-center gap-4">
+              <div className="flex flex-wrap items-center justify-end gap-4">
                 <div className="flex flex-col items-center gap-2 flex-shrink-0">
                   <div className="bg-white p-2 rounded-xl">
                     <QRCodeSVG value={`${window.location.origin}/join/${roomCode}`} size={128} />
@@ -2159,12 +2081,10 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                   </button>
                 </div>
               </div>
-              <p className="text-zinc-500 text-xs text-center mt-2">Scan to join — guests still need the PIN</p>
-
               {guests.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-zinc-800/50">
-                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2 text-center">Guests ({guests.length})</p>
-                  <div className="flex flex-wrap justify-center gap-2">
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2 text-right">Guests ({guests.length})</p>
+                  <div className="flex flex-wrap justify-end gap-2">
                     {guests.map((g) => (
                       <div key={g.uid} className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0" style={{
                         backgroundColor: g.color || '#6366f1',
