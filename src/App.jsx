@@ -95,6 +95,13 @@ function formatTime(seconds) {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function attributionLabel(song) {
+  if (song.addedByName) return song.addedByName;
+  if (song.addedBy === 'host') return 'Host';
+  if (song.addedBy === 'host-seed') return 'Playlist import';
+  return null;
+}
+
 function canAddSong() {
   const now = Date.now();
   const recentAdds = JSON.parse(localStorage.getItem('recentAdds') || '[]');
@@ -964,7 +971,10 @@ function QueueSidebar({
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-sm font-medium truncate">{song.title}</p>
-                  <p className="text-slate-400 text-xs truncate">{song.channelTitle}</p>
+                  <p className="text-slate-400 text-xs truncate">
+                    {song.channelTitle}
+                    {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
+                  </p>
                 </div>
 
                 {isHost ? (
@@ -1033,6 +1043,7 @@ function QueueSidebar({
 // GUEST VIEW COMPONENT
 // ============================================================================
 function GuestView({ userId, roomCode }) {
+  const guestName = sessionStorage.getItem('guestName') || 'Guest';
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1122,6 +1133,7 @@ function GuestView({ userId, roomCode }) {
         thumbnailUrl: song.thumbnailUrl,
         channelTitle: song.channelTitle,
         addedBy: userId,
+        addedByName: guestName,
         addedAt: serverTimestamp(),
         status: 'pending',
         upvotes: [],
@@ -1255,7 +1267,10 @@ function GuestView({ userId, roomCode }) {
                   <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover" />
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-medium truncate text-sm">{song.title}</p>
-                    <p className="text-slate-400 text-xs truncate">{song.channelTitle}</p>
+                    <p className="text-slate-400 text-xs truncate">
+                      {song.channelTitle}
+                      {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
+                    </p>
                   </div>
                 </div>
               ))}
