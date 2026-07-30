@@ -1334,7 +1334,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const [isPlaying, setIsPlaying] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [pinCopied, setPinCopied] = useState(false);
-  const [panelExpanded, setPanelExpanded] = useState(true);
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -1973,6 +1973,38 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center p-8">
+        {/* Search results */}
+        {searchResults.length > 0 && (
+          <div className="w-full max-w-2xl mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-zinc-400">Search Results</h2>
+              <button
+                onClick={() => { setSearchResults([]); setSearchQuery(''); }}
+                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+            {searchResults.map((song) => (
+              <div key={song.videoId} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 border border-zinc-800/50">
+                <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+                  <p className="text-zinc-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
+                </div>
+                <button
+                  onClick={() => handleAddSong(song)}
+                  className="flex-shrink-0 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center transition-transform"
+                >
+                  <Plus className="w-5 h-5 text-zinc-100" />
+                </button>
+              </div>
+            ))}
+            </div>
+          </div>
+        )}
+
         {currentSong ? (
           <div className="w-full max-w-2xl">
             <div className="relative mb-8">
@@ -2022,38 +2054,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
           <div className="text-center">
             <h2 className="text-xl font-medium text-zinc-100 mb-2">Waiting for songs...</h2>
             <p className="text-zinc-400 text-sm">Search above to add the first one</p>
-          </div>
-        )}
-
-        {/* Search results */}
-        {searchResults.length > 0 && (
-          <div className="w-full max-w-2xl mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-zinc-400">Search Results</h2>
-              <button
-                onClick={() => { setSearchResults([]); setSearchQuery(''); }}
-                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
-              >
-                Clear
-              </button>
-            </div>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-            {searchResults.map((song) => (
-              <div key={song.videoId} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 border border-zinc-800/50">
-                <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
-                  <p className="text-zinc-400 text-xs truncate">{song.channelTitle} · {formatTime(song.duration)}</p>
-                </div>
-                <button
-                  onClick={() => handleAddSong(song)}
-                  className="flex-shrink-0 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center transition-transform"
-                >
-                  <Plus className="w-5 h-5 text-zinc-100" />
-                </button>
-              </div>
-            ))}
-            </div>
           </div>
         )}
       </main>
