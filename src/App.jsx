@@ -1397,11 +1397,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   );
-  const transitionTriggeredRef = useRef(false);
-
-  useEffect(() => {
-    transitionTriggeredRef.current = false;
-  }, [currentSong]);
 
   const roomQueueRef = () => collection(db, 'rooms', roomCode, 'queue');
   const roomDocRef = (id) => doc(db, 'rooms', roomCode, 'queue', id);
@@ -1639,18 +1634,14 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
             if (currentSong) {
               localStorage.setItem('party_playlist_progress', JSON.stringify({ videoId: currentSong.videoId, timestamp: current, savedAt: Date.now() }));
             }
-            if (total - current < 2 && !transitionTriggeredRef.current && isPlaying) {
-              transitionTriggeredRef.current = true;
-              handleSongEnded();
-            }
           }
         } catch (e) { void e; }
       }
     }, 250);
     return () => clearInterval(interval);
-  }, [playerReady, isPlaying, currentSong, handleSongEnded]);
+  }, [playerReady, currentSong]);
 
-  const handleSeek = (e) => {
+  const handleSeekCommit = (e) => {
     const time = parseFloat(e.target.value);
     setProgress(time);
     if (playerRef.current?.seekTo) playerRef.current.seekTo(time, true);
@@ -2128,7 +2119,9 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
               min="0"
               max={duration || 100}
               value={progress}
-              onChange={handleSeek}
+              onChange={(e) => setProgress(parseFloat(e.target.value))}
+              onMouseUp={handleSeekCommit}
+              onTouchEnd={handleSeekCommit}
               className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer mb-2 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-zinc-100 [&::-webkit-slider-thumb]:rounded-full"
               style={{ background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${progressPercent}%, #27272a ${progressPercent}%, #27272a 100%)` }}
             />
