@@ -44,6 +44,7 @@ import {
   ArrowUpCircle,
   UserPlus,
   LogIn,
+  LogOut,
   ChevronLeft,
   Shield,
   Copy,
@@ -1045,7 +1046,7 @@ function QueueSidebar({
 // ============================================================================
 // GUEST VIEW COMPONENT
 // ============================================================================
-function GuestView({ userId, roomCode }) {
+function GuestView({ userId, roomCode, onLeave }) {
   const guestName = sessionStorage.getItem('guestName') || 'Guest';
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -1184,6 +1185,13 @@ function GuestView({ userId, roomCode }) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-zinc-400 text-sm hidden sm:inline">{queue.length} in queue</span>
+            <button
+              onClick={() => { if (window.confirm('Leave this party?')) onLeave(); }}
+              className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-400 hover:text-red-400"
+              title="Leave party"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
             <button
               onClick={() => setShowSidebar(!showSidebar)}
               className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
@@ -2356,6 +2364,13 @@ function App() {
     setView('landing');
   };
 
+  const handleGuestLeave = () => {
+    clearSession();
+    setCurrentRoom(null);
+    setUserId(null);
+    setView('landing');
+  };
+
   if (view === 'loading') {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
@@ -2455,7 +2470,7 @@ function App() {
   }
 
   if (view === 'guest-view' && currentRoom) {
-    return <GuestView userId={userId} roomCode={currentRoom.roomCode} />;
+    return <GuestView userId={userId} roomCode={currentRoom.roomCode} onLeave={handleGuestLeave} />;
   }
 
   // Fallback
