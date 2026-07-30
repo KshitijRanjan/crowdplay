@@ -1,8 +1,12 @@
 # Party Playlist — Claude Context
 
+> For file locations, consult [index.md](index.md) before exploring the codebase.
+
 ## What This App Does
 
-A real-time collaborative music queue for weddings/parties. Guests join with a PIN, search YouTube, and add songs to a shared queue. The host has a separate PIN to access full playback controls and queue management. Everything syncs live across devices via Firestore.
+Makes sharing music playlists easier: host plays music through the app, guests suggest songs from their own devices, multiple guests upvote suggestions to shape what plays next. Synced live via Firestore.
+
+**Pivoting** (as of 2026-07-30) from a single 2-day wedding-event tool to a full-fledged app for regular, recurring use by any group — not tied to one event date. See `context.docx` for full product context and `PROGRESS.md` for what this pivot still needs.
 
 **Live app:** https://party-playlist-seven.vercel.app/
 **GitHub:** https://github.com/KshitijRanjan/party-playlist
@@ -22,137 +26,71 @@ A real-time collaborative music queue for weddings/parties. Guests join with a P
 | Media | YouTube Data API v3 + YouTube IFrame API |
 | Deployment | Vercel (SPA rewrites via vercel.json) |
 
----
-
-## Project Structure
-
-```
-Wedding_Planning/
-├── src/
-│   ├── App.jsx              # Main monolithic component (~1420 lines)
-│   ├── ErrorBoundary.jsx    # React error boundary
-│   ├── main.jsx             # Entry point
-│   └── index.css            # Global styles + Tailwind directives
-├── public/
-├── index.html
-├── firestore.rules          # Firestore security rules (deploy separately)
-├── firebase.json            # Firebase project config
-├── vercel.json              # SPA rewrite rules for Vercel
-├── .env                     # Local secrets (never commit)
-├── .env.example             # Template for required env vars
-├── tailwind.config.js
-├── vite.config.js
-└── package.json
-```
-
----
-
-## Key Components (all in App.jsx)
-
-- **`PinGate`** — PIN entry UI, validates against env vars, writes role to Firestore
-- **`GuestView`** — YouTube search, add to queue, upvote, view now-playing
-- **`HostView`** — YouTube IFrame player with custom controls, queue management, playlist seeding
-- **`QueueSidebar`** — Right panel showing upcoming songs and played history
-- **`Toast`** — Notification system (success/error/info)
+No backend service — Firebase is the only server-side dependency (free tier, no Cloud Functions).
 
 ---
 
 ## Firestore Data Model
 
-### `roles/{uid}`
-```js
-{ role: "host" | "guest" }
 ```
-Written once on sign-in. Users cannot update or delete their own role document (prevents escalation).
-
-### `queue/{docId}`
-```js
-{
-  videoId: string,
-  title: string,
-  thumbnailUrl: string,
-  channelTitle: string,
-  addedBy: string,       // uid or "host-seed"
-  addedAt: Timestamp,
-  status: "pending" | "playing" | "played",
-  upvotes: string[],     // array of uids
-  isPriority: boolean    // host-set flag
-}
+rooms/{roomCode}                          # one doc per party
+rooms/{roomCode}/queue/{docId}            # { videoId, title, thumbnailUrl, channelTitle,
+                                           #   addedBy, addedAt, status, upvotes[], isPriority }
+rooms/{roomCode}/roles/{uid}              # { role: "host" | "guest" } — write-once
+hostRequests/{email}                      # pending host-access requests
+approvedHosts/{email}                     # emails approved to host
 ```
+Client-side queue sort: `isPriority → upvote count → addedAt (FIFO)`.
 
-**Client-side sort order:** isPriority → upvote count → addedAt (FIFO)
+## Auth Flow
+
+1. User enters 4-digit PIN → validated client-side against `VITE_HOST_PIN`/`VITE_GUEST_PIN`
+2. `signInAnonymously(auth)` runs **before any Firestore read** (rules require `isAuthenticated()` — see `firestore.rules:37`)
+3. Role written once to `roles/{uid}`
+4. PIN verification cached in sessionStorage for refresh
 
 ---
 
-## Authentication Flow
+## Conventions Observed
 
-1. User enters 4-digit PIN
-2. Validated client-side against `VITE_HOST_PIN` or `VITE_GUEST_PIN`
-3. Firebase Anonymous Auth signs in the user
-4. Role written to `roles/{uid}` in Firestore
-5. PIN verification stored in sessionStorage for page refresh
-
----
-
-## Environment Variables
-
-All secrets live in `.env` (local) and Vercel environment settings (production). See `.env.example` for the full list. Key ones:
-
-```
-VITE_YOUTUBE_API_KEY       # YouTube Data API v3 key
-VITE_HOST_PIN              # 4-digit host PIN
-VITE_GUEST_PIN             # 4-digit guest PIN
-```
-
-Firebase config (apiKey, projectId, etc.) is embedded in `src/App.jsx` directly — this is intentional and safe for Firebase web apps since Firestore rules are the real security layer.
+- **Everything lives in `src/App.jsx`** (~2170 lines). Components are top-level `function Name(props) {}`, PascalCase. Do not split into files unless explicitly asked.
+- **Error handling:** every async Firestore/YouTube call wrapped in `try { ... } catch (err) { ... }`, surfaced to the user via the `Toast` component — not `alert()`, not silent console-only failures.
+- **State:** local `useState` per component, no global store (Redux/Zustand/Context) — Firestore's `onSnapshot` listeners are the source of truth for shared state.
+- **New features:** add a new top-level component function in `App.jsx`, wire it into the router/state in the `App` component at the bottom of the file.
+- **Styling:** Tailwind utility classes inline, dark glassmorphism theme. No CSS modules, no styled-components.
+- **Tests:** none currently in this repo.
 
 ---
 
-## Security Model
+## Security Model (two layers)
 
-Security is enforced at **two layers**:
+1. **Firestore Security Rules** (`firestore.rules`) — the real trust boundary. Checks role before writes.
+2. **Client-side PIN gate** — UI convenience only, not the security layer.
 
-1. **Firestore Security Rules** (`firestore.rules`) — the primary layer. Rules check the user's role document before allowing writes. Even if someone bypasses the frontend, Firestore blocks unauthorized operations.
-2. **Client-side PIN gate** — secondary. Guards the UI but is not the trust boundary.
+Rules enforce: only hosts delete/update queue fields (except `upvotes`), guests can only toggle their own uid in `upvotes`, role docs are write-once, all unauthenticated access denied.
 
-Key rules enforced:
-- Only hosts can delete queue items
-- Only hosts can update queue fields other than `upvotes`
-- Guests can only toggle their own uid in/out of `upvotes`
-- Role documents are write-once (no privilege escalation)
-- All unauthenticated access is denied
-
-**YouTube API key** is restricted in Google Cloud Console to only work from `party-playlist-seven.vercel.app`.
+**Never weaken `isAuthenticated()` checks in `firestore.rules` without explicit instruction** — this was the root cause of a guest-login outage (auth must happen before any `getDoc`/`getDocs` call, not after).
 
 ---
 
 ## Development Workflow
 
-### Branching Convention
-- `main` — production, auto-deployed to Vercel
-- `feature/<name>` — all new work goes here, PR into main
+- `main` — production, auto-deployed to Vercel on push
+- `feature/<name>` or `fix/<name>` — all work branches, PR into main
+- After changing `firestore.rules`, deploy separately: `firebase use wedding-management-de9b1 && firebase deploy --only firestore:rules` (Vercel push does NOT deploy rules)
 
-### Common Commands
 ```bash
-npm run dev        # local dev server (localhost:5173)
-npm run build      # production build to dist/
-npm run lint       # ESLint check
+npm run dev        # localhost:5173
+npm run build       # dist/
+npm run lint
 ```
-
-### Deploying Firestore Rules
-After changing `firestore.rules`, deploy separately:
-```bash
-firebase use wedding-management-de9b1
-firebase deploy --only firestore:rules
-```
-This is separate from Vercel deploys which only push the frontend.
 
 ---
 
-## Known Constraints & Decisions
+## Known Constraints — Never Do
 
-- **Free tier only** — no Firebase Functions (requires paid plan), no paid infrastructure. Vercel free tier is acceptable for serverless if needed in future.
-- **Monolithic App.jsx** — all components are in one file by design for this project's scope. Do not split unless explicitly asked.
-- **Client-side rate limiting** — song add rate limit (5/min) uses localStorage. Not tamper-proof but sufficient for a party app.
-- **No server-side PIN validation** — accepted trade-off for free hosting. Firestore rules limit the blast radius if bypassed.
-- **YouTube IFrame API** loaded via script tag in `index.html`, not as an npm package.
+- Don't split `App.jsx` into multiple files without being asked.
+- Don't add Firebase Cloud Functions or paid infra (free-tier-only project).
+- Don't move PIN validation server-side — accepted trade-off; Firestore rules are the real gate.
+- Don't rely on client-side rate limiting (5 songs/min via localStorage) as a security control — it's not tamper-proof, just abuse-reduction.
+- Don't load the YouTube IFrame API as an npm package — it's a script tag in `index.html` by design.
