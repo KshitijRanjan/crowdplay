@@ -1217,7 +1217,15 @@ function GuestView({ userId, roomCode }) {
 
         {searchResults.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4">Search Results</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-zinc-100">Search Results</h2>
+              <button
+                onClick={() => { setSearchResults([]); setSearchQuery(''); }}
+                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+              >
+                Clear
+              </button>
+            </div>
             <div className="space-y-3">
               {searchResults.map((song) => (
                 <div key={song.videoId} className="flex items-center gap-4 bg-zinc-900/80 rounded-2xl p-3 border border-zinc-800/50">
@@ -2019,7 +2027,17 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
 
         {/* Search results */}
         {searchResults.length > 0 && (
-          <div className="w-full max-w-2xl mt-6 space-y-2 max-h-64 overflow-y-auto">
+          <div className="w-full max-w-2xl mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-zinc-400">Search Results</h2>
+              <button
+                onClick={() => { setSearchResults([]); setSearchQuery(''); }}
+                className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
             {searchResults.map((song) => (
               <div key={song.videoId} className="flex items-center gap-3 bg-zinc-900/80 rounded-xl p-2 border border-zinc-800/50">
                 <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
@@ -2035,6 +2053,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 </button>
               </div>
             ))}
+            </div>
           </div>
         )}
       </main>
