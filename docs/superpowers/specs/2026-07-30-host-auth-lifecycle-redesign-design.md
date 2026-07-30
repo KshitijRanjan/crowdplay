@@ -15,8 +15,8 @@ This spec covers all three because history/reopen (gap 2) depends on a stable pe
 
 ## Goals
 
-- Replace anonymous host identity with real Firebase Auth (email + password), including a self-serve forgot-password flow.
-- Migrate existing `approvedHosts` (who have no password on file) without an admin-side migration step.
+- Replace anonymous host identity with real Firebase Auth via **Google Sign-In** — no passwords to create, store, forget, or reset.
+- No migration step needed for existing `approvedHosts` entries — a Google account is created/linked automatically on first sign-in for any email already on the approved list.
 - Close the Firestore rule gap that lets any authenticated (including anonymous/guest) client create a room directly via the SDK, bypassing host approval.
 - Replace fixed 12h room expiry with a rolling-inactivity-or-manual-end model, computed client-side (no Cloud Functions — free tier constraint).
 - Give hosts a history of every room they've created, and let them reopen an archived room with its queue intact.
@@ -26,27 +26,23 @@ This spec covers all three because history/reopen (gap 2) depends on a stable pe
 
 - Concurrent live rooms per host (still capped at one live room at a time — creating a new one ends whichever was previously live).
 - Guest identity/authentication changes — guests remain anonymous, PIN-gated, unchanged.
-- Custom-branded password-reset emails — uses Firebase Auth's default hosted reset flow.
 - Cloud Functions or any paid infrastructure — everything here runs client-side against Firestore, same as today.
 
 ## 1. Host Authentication
 
-**Firebase Console (manual, one-time):** enable the Email/Password sign-in provider under Authentication. This cannot be done from code — see "What you need to do" below.
+**Firebase Console (manual, one-time):** enable the **Google** sign-in provider under Authentication. This cannot be done from code — see "What you need to do" below.
 
-**`RequestAccessForm`** — adds password + confirm-password fields to the existing name/email form.
-1. `createUserWithEmailAndPassword(auth, email, password)` creates the Firebase Auth account (auto-signs them in).
-2. Write `hostRequests/{email}` with `status: 'pending'` as today; send the existing admin-notification email via EmailJS.
-3. `signOut(auth)` immediately after — a pending, unapproved request should not leave an authenticated session behind.
+**`RequestAccessForm`** — replaces the name/email form with a single "Continue with Google" button.
+1. `signInWithPopup(auth, new GoogleAuthProvider())` — Firebase creates the account automatically on first use; email comes from the verified Google profile, no typing/typos possible.
+2. Write `hostRequests/{email}` with `status: 'pending'`, using the Google profile's email + `displayName` in place of the old name field; send the existing admin-notification email via EmailJS exactly as today.
+3. No sign-out needed afterward — being authenticated has never conveyed host privileges on its own (anonymous guests are "authenticated" too); only `approvedHosts` membership does.
 
-**`HostLoginForm`** — replaces the email-only form with email + password.
-1. `signInWithEmailAndPassword(auth, email, password)`.
-2. On success, check `approvedHosts/{email}` exactly as today — having a password proves identity, not approval.
-3. Wrong credentials → generic "Wrong email or password" (doesn't reveal which field was wrong — standard practice).
-4. Not yet approved → same pending/denied messaging that exists today.
+**`HostLoginForm`** — replaces the email input with the same "Continue with Google" button.
+1. `signInWithPopup(auth, new GoogleAuthProvider())`.
+2. Check `approvedHosts/{email}` exactly as today, using the Google-verified email.
+3. Not yet approved → same pending/denied messaging that exists today, keyed off `hostRequests/{email}.status`.
 
-**Forgot password** — a link on the login form calling `sendPasswordResetEmail(auth, email)`, using Firebase's default hosted reset page and email template.
-
-**Migration for pre-existing approved hosts:** if `signInWithEmailAndPassword` fails with `auth/user-not-found` (or `auth/invalid-credential` in newer SDK versions — check both) but the email exists in `approvedHosts`, show a "Set your password" form in place of a login error. Submitting it calls `createUserWithEmailAndPassword` for that email and proceeds as a normal login. No admin action required.
+**Known edge case:** if a host originally requested access with one email but signs in with a Google account under a different email, the `approvedHosts` lookup won't match. This is a one-time, self-evident failure ("email not found, request access first") — no special handling needed since it surfaces through the existing not-approved messaging.
 
 **Firestore rules:**
 ```
@@ -128,13 +124,13 @@ rooms/{roomCode}
   rooms/{roomCode}/roles/{uid}                # unchanged
 ```
 
-`hostRequests/{email}` and `approvedHosts/{email}` docs are unchanged in shape — password lives entirely in Firebase Auth, not in Firestore.
+`hostRequests/{email}` and `approvedHosts/{email}` docs are unchanged in shape — no password field, nothing new to store; identity lives entirely in Firebase Auth via Google.
 
 ## Error handling
 
-- Firebase Auth errors (`auth/wrong-password`, `auth/user-not-found`, `auth/too-many-requests`, `auth/weak-password`) map to existing `Toast`/inline-error patterns already used throughout the app — no new error-handling paradigm introduced.
+- Firebase Auth popup errors (`auth/popup-closed-by-user`, `auth/popup-blocked`, `auth/network-request-failed`, `auth/cancelled-popup-request`) map to existing `Toast`/inline-error patterns already used throughout the app — no new error-handling paradigm introduced. Closing the Google popup should just silently reset the form, not show a scary error.
 - Reopening a room the host no longer owns (shouldn't be reachable via UI, but rules-enforced): `update` rule already requires `resource.data.hostUid == request.auth.uid`, so a stale/forged reopen attempt fails at the rules layer, not just the UI layer.
-- Migration path (`auth/user-not-found` for an approved host) is explicitly handled per section 1, not treated as a generic login failure.
+- Email mismatch between request and login (per section 1's known edge case) surfaces through the existing "email not found, request access first" messaging — no new error path required.
 
 ## Out of scope / explicitly deferred
 
@@ -144,6 +140,6 @@ rooms/{roomCode}
 
 ## What the user needs to do (manual, cannot be done from code)
 
-1. **Firebase Console → Authentication → Sign-in method** → enable **Email/Password** provider on the `wedding-management-de9b1` project.
-2. Decide whether to customize the Firebase Auth email templates (password reset, etc.) under **Authentication → Templates** — optional, defaults work out of the box.
+1. **Firebase Console → Authentication → Sign-in method** → enable the **Google** provider on the `wedding-management-de9b1` project (the screen already shown, via "Add new provider" or the "Enable" shortcut on the recommendation banner).
+2. **Firebase Console → Authentication → Settings → Authorized domains** → confirm `party-playlist-seven.vercel.app` is listed. Firebase auto-authorizes its own `*.firebaseapp.com`/`*.web.app` domains, but a custom Vercel domain needs to be added manually or the Google sign-in popup will fail on the live site.
 3. Review this spec and confirm before implementation planning begins.
