@@ -18,10 +18,12 @@ import {
   deleteDoc,
   getDocs,
   writeBatch,
-  Timestamp,
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Search,
   Plus,
@@ -37,6 +39,7 @@ import {
   Pause,
   SkipBack,
   Trash2,
+  GripVertical,
   Menu,
   ChevronUp,
   ChevronDown,
@@ -44,6 +47,7 @@ import {
   ArrowUpCircle,
   UserPlus,
   LogIn,
+  LogOut,
   ChevronLeft,
   Shield,
   Copy,
@@ -100,6 +104,47 @@ function attributionLabel(song) {
   if (song.addedBy === 'host') return 'Host';
   if (song.addedBy === 'host-seed') return 'Playlist import';
   return null;
+}
+
+function effectiveOrder(song) {
+  if (song.manuallyPositioned) return song.order;
+  return song.addedAt?.toMillis ? song.addedAt.toMillis() : (song.addedAt?.seconds ? song.addedAt.seconds * 1000 : Date.now());
+}
+
+function sortPendingQueue(songs) {
+  const anchored = songs
+    .filter((s) => s.manuallyPositioned)
+    .sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
+
+  const unanchored = songs
+    .filter((s) => !s.manuallyPositioned)
+    .sort((a, b) => (b.upvotes?.length || 0) - (a.upvotes?.length || 0) || effectiveOrder(a) - effectiveOrder(b));
+
+  const segments = Array.from({ length: anchored.length + 1 }, () => []);
+  for (const song of unanchored) {
+    let seg = 0;
+    for (const a of anchored) {
+      if (effectiveOrder(song) >= effectiveOrder(a)) seg++;
+      else break;
+    }
+    segments[seg].push(song);
+  }
+
+  const result = [];
+  for (let i = 0; i < anchored.length; i++) {
+    result.push(...segments[i]);
+    result.push(anchored[i]);
+  }
+  result.push(...segments[anchored.length]);
+  return result;
+}
+
+function computeDropOrder(prevNeighbor, nextNeighbor) {
+  const GAP = 60000; // 1 minute, in ms — normal spacing between adjacent midpoint inserts
+  const TAIL_GAP = 24 * 60 * 60 * 1000; // 24 hours, in ms — used only when dropping at the very end, so the anchor stays ahead of real addedAt values for the life of the party
+  const prevOrder = prevNeighbor ? effectiveOrder(prevNeighbor) : (nextNeighbor ? effectiveOrder(nextNeighbor) - GAP * 2 : Date.now());
+  const nextOrder = nextNeighbor ? effectiveOrder(nextNeighbor) : prevOrder + TAIL_GAP;
+  return (prevOrder + nextOrder) / 2;
 }
 
 function canAddSong() {
@@ -922,19 +967,11 @@ function AdminFlow({ onBack }) {
 // ============================================================================
 // QUEUE SIDEBAR COMPONENT
 // ============================================================================
-function QueueSidebar({
-  showSidebar,
-  setShowSidebar,
-  queue,
-  handlePlayNext,
-  handleDeleteSong,
-  handleRestoreSong,
-  isHost,
-  userId,
-  handleUpvote,
-}) {
-  const upNext = queue.filter((s) => s.status === 'pending');
-  const playedHistory = queue.filter((s) => s.status === 'played');
+function QueueSidebar({ showSidebar, setShowSidebar, queue, userId, handleUpvote }) {
+  const upNext = sortPendingQueue(queue.filter((s) => s.status === 'pending'));
+  const playedHistory = queue
+    .filter((s) => s.status === 'played')
+    .sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
 
   return (
     <>
@@ -980,34 +1017,15 @@ function QueueSidebar({
                   </p>
                 </div>
 
-                {isHost ? (
-                  <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handlePlayNext(song)}
-                      className={`p-1.5 hover:bg-zinc-800 rounded-full transition-colors ${song.isPriority ? 'text-green-400' : 'text-blue-400 hover:text-blue-300'}`}
-                      title="Play Next"
-                    >
-                      <ArrowUpCircle className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSong(song.id)}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleUpvote(song)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
-                    >
-                      <ArrowUpCircle className="w-4 h-4" />
-                      <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleUpvote(song)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-full transition-colors ${song.upvotes?.includes(userId) ? 'bg-indigo-500 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100'}`}
+                  >
+                    <ArrowUpCircle className="w-4 h-4" />
+                    <span className="text-xs font-medium">{song.upvotes?.length || 0}</span>
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -1023,15 +1041,6 @@ function QueueSidebar({
                   <div className="flex-1 min-w-0">
                     <p className="text-zinc-400 text-sm font-medium truncate">{song.title}</p>
                   </div>
-                  {isHost && handleRestoreSong && (
-                    <button
-                      onClick={() => handleRestoreSong(song)}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-green-400 transition-colors flex-shrink-0"
-                      title="Add back to queue"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
               ))}
             </div>
@@ -1045,7 +1054,7 @@ function QueueSidebar({
 // ============================================================================
 // GUEST VIEW COMPONENT
 // ============================================================================
-function GuestView({ userId, roomCode }) {
+function GuestView({ userId, roomCode, onLeave }) {
   const guestName = sessionStorage.getItem('guestName') || 'Guest';
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -1062,16 +1071,6 @@ function GuestView({ userId, roomCode }) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const songs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      songs.sort((a, b) => {
-        if (a.isPriority && !b.isPriority) return -1;
-        if (!a.isPriority && b.isPriority) return 1;
-        const votesA = a.upvotes?.length || 0;
-        const votesB = b.upvotes?.length || 0;
-        if (votesA !== votesB) return votesB - votesA;
-        const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
-        const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
-        return ta - tb;
-      });
       setQueue(songs);
     }, (error) => {
       console.error('Queue subscription error:', error);
@@ -1140,7 +1139,6 @@ function GuestView({ userId, roomCode }) {
         addedAt: serverTimestamp(),
         status: 'pending',
         upvotes: [],
-        isPriority: false,
       });
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       recordSongAdd();
@@ -1167,7 +1165,7 @@ function GuestView({ userId, roomCode }) {
   };
 
   const nowPlaying = queue.find((s) => s.status === 'playing');
-  const upNext = queue.filter((s) => s.status === 'pending');
+  const upNext = sortPendingQueue(queue.filter((s) => s.status === 'pending'));
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -1184,6 +1182,13 @@ function GuestView({ userId, roomCode }) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-zinc-400 text-sm hidden sm:inline">{queue.length} in queue</span>
+            <button
+              onClick={() => { if (window.confirm('Leave this party?')) onLeave(); }}
+              className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-400 hover:text-red-400"
+              title="Leave party"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
             <button
               onClick={() => setShowSidebar(!showSidebar)}
               className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
@@ -1304,12 +1309,59 @@ function GuestView({ userId, roomCode }) {
         showSidebar={showSidebar}
         setShowSidebar={setShowSidebar}
         queue={queue}
-        isHost={false}
         userId={userId}
         handleUpvote={handleUpvote}
       />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
+// ============================================================================
+// SORTABLE UP NEXT ROW (drag-and-drop, host only)
+// ============================================================================
+function SortableUpNextRow({ song, index, handleDeleteSong }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 bg-zinc-900/60 rounded-xl p-2 border border-zinc-800/50 group"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="p-1.5 text-zinc-600 hover:text-zinc-300 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center text-xs text-zinc-500 font-medium">{index + 1}</span>
+      <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
+        <p className="text-zinc-500 text-xs truncate">
+          {song.channelTitle}
+          {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
+        </p>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          onClick={() => handleDeleteSong(song.id)}
+          className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
+          title="Delete"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -1341,6 +1393,10 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   const [showImport, setShowImport] = useState(false);
 
   const isInitialLoad = useRef(true);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  );
   const transitionTriggeredRef = useRef(false);
 
   useEffect(() => {
@@ -1418,7 +1474,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
             addedAt: serverTimestamp(),
             status: 'pending',
             upvotes: [],
-            isPriority: false,
           });
           allCount++;
         }
@@ -1447,7 +1502,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     if (!currentSong) return;
     const batch = writeBatch(db);
     batch.update(doc(db, 'rooms', roomCode, 'queue', currentSong.id), { status: 'played' });
-    const nextSong = queueRef.current.filter((s) => s.status === 'pending')[0];
+    const nextSong = sortPendingQueue(queueRef.current.filter((s) => s.status === 'pending'))[0];
     if (nextSong) {
       batch.update(doc(db, 'rooms', roomCode, 'queue', nextSong.id), { status: 'playing' });
     } else {
@@ -1552,15 +1607,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     );
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const songs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      songs.sort((a, b) => {
-        if (a.isPriority && !b.isPriority) return -1;
-        if (!a.isPriority && b.isPriority) return 1;
-        const vA = a.upvotes?.length || 0, vB = b.upvotes?.length || 0;
-        if (vA !== vB) return vB - vA;
-        const ta = a.addedAt?.toMillis ? a.addedAt.toMillis() : (a.addedAt?.seconds * 1000 || 0);
-        const tb = b.addedAt?.toMillis ? b.addedAt.toMillis() : (b.addedAt?.seconds * 1000 || 0);
-        return ta - tb;
-      });
       setQueue(songs);
       queueRef.current = songs;
 
@@ -1568,7 +1614,8 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       if (playing) {
         if (!currentSong || currentSong.id !== playing.id) setCurrentSong(playing);
       } else {
-        const nextSong = songs.find((s) => s.status === 'pending');
+        const pendingSorted = sortPendingQueue(songs.filter((s) => s.status === 'pending'));
+        const nextSong = pendingSorted[0];
         if (nextSong) {
           await updateDoc(doc(db, 'rooms', roomCode, 'queue', nextSong.id), { status: 'playing' });
         } else {
@@ -1614,7 +1661,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     playerRef.current?.stopVideo?.();
     const batch = writeBatch(db);
     batch.update(roomDocRef(currentSong.id), { status: 'played' });
-    const nextSong = queue.filter((s) => s.status === 'pending')[0];
+    const nextSong = sortPendingQueue(queue.filter((s) => s.status === 'pending'))[0];
     if (nextSong) {
       batch.update(roomDocRef(nextSong.id), { status: 'playing' });
     } else {
@@ -1631,7 +1678,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       const currentTime = playerRef.current.getCurrentTime();
       if (currentTime > 10) { playerRef.current.seekTo(0); return; }
     }
-    const playedSongs = queue.filter((s) => s.status === 'played');
+    const playedSongs = queue.filter((s) => s.status === 'played').sort((a, b) => effectiveOrder(a) - effectiveOrder(b));
     if (playedSongs.length === 0) return;
     const lastPlayed = playedSongs[playedSongs.length - 1];
     if (currentSong) await updateDoc(roomDocRef(currentSong.id), { status: 'pending' });
@@ -1651,31 +1698,27 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
     }
   };
 
-  const handlePlayNext = async (song) => {
+  const handleReorderSong = async (songId, newIndex, currentUpNext) => {
     try {
-      const pendingSongs = queue.filter((s) => s.status === 'pending');
-      if (pendingSongs.length === 0) return;
-      const topSong = pendingSongs[0];
-      if (topSong.id === song.id) { setToast({ message: 'Song is already up next!', type: 'success' }); return; }
-      let newTime;
-      if (topSong.addedAt?.toMillis) {
-        newTime = Timestamp.fromMillis(topSong.addedAt.toMillis() - 1000);
-      } else {
-        const base = topSong.addedAt?.toMillis ? topSong.addedAt.toMillis() : Date.now();
-        newTime = Timestamp.fromMillis(base - 1000);
-      }
-      await updateDoc(roomDocRef(song.id), { isPriority: true, addedAt: newTime });
+      const reordered = arrayMove(currentUpNext, currentUpNext.findIndex((s) => s.id === songId), newIndex);
+      const draggedIndex = reordered.findIndex((s) => s.id === songId);
+      const prevNeighbor = draggedIndex > 0 ? reordered[draggedIndex - 1] : null;
+      const nextNeighbor = draggedIndex < reordered.length - 1 ? reordered[draggedIndex + 1] : null;
+      const newOrder = computeDropOrder(
+        prevNeighbor && prevNeighbor.id !== songId ? prevNeighbor : null,
+        nextNeighbor && nextNeighbor.id !== songId ? nextNeighbor : null
+      );
+      await updateDoc(roomDocRef(songId), { order: newOrder, manuallyPositioned: true });
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
-      setToast({ message: 'Song moved to top!', type: 'success' });
     } catch (e) {
-      console.error('Play next error:', e);
-      setToast({ message: 'Failed to prioritize song', type: 'error' });
+      console.error('Reorder song error:', e);
+      setToast({ message: 'Failed to reorder song.', type: 'error' });
     }
   };
 
   const handleRestoreSong = async (song) => {
     try {
-      await updateDoc(roomDocRef(song.id), { status: 'pending', isPriority: false, addedAt: serverTimestamp() });
+      await updateDoc(roomDocRef(song.id), { status: 'pending', manuallyPositioned: false, addedAt: serverTimestamp() });
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song added back to queue!', type: 'success' });
     } catch (e) {
@@ -1729,7 +1772,6 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
         addedAt: serverTimestamp(),
         status: 'pending',
         upvotes: [],
-        isPriority: false,
       });
       bumpRoomActivity(roomCode).catch((e) => console.error('Activity bump failed:', e));
       setToast({ message: 'Song added!', type: 'success' });
@@ -1801,17 +1843,20 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
   };
 
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
-  const upNext = queue.filter((s) => s.status === 'pending');
-  const playedHistory = queue.filter((s) => s.status === 'played').slice().reverse();
+  const upNext = sortPendingQueue(queue.filter((s) => s.status === 'pending'));
+  const playedHistory = queue
+    .filter((s) => s.status === 'played')
+    .sort((a, b) => effectiveOrder(a) - effectiveOrder(b))
+    .reverse();
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
+    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
       <div className="absolute" style={{ width: 1, height: 1, overflow: 'hidden' }}>
         <div id="youtube-player" ref={playerContainerRef}></div>
       </div>
 
       {/* Header */}
-      <header className="bg-zinc-950/80 border-b border-zinc-800/50 px-4 py-3">
+      <header className="shrink min-h-0 overflow-y-auto bg-zinc-950/80 border-b border-zinc-800/50 px-4 py-3">
         <div className="max-w-4xl mx-auto">
           {/* Top row */}
           <div className="flex items-center justify-between mb-3">
@@ -1967,7 +2012,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto px-4 py-6 pb-4">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 py-6 pb-4">
         <div className="max-w-2xl mx-auto">
           {/* Search results */}
           {searchResults.length > 0 && (
@@ -2024,37 +2069,24 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
                 <p className="text-zinc-400 text-sm">Search above to add the first song</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {upNext.map((song, index) => (
-                  <div key={song.id} className="flex items-center gap-3 bg-zinc-900/60 rounded-xl p-2 border border-zinc-800/50 group">
-                    <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center text-xs text-zinc-500 font-medium">{index + 1}</span>
-                    <img src={song.thumbnailUrl} alt={song.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-zinc-100 text-sm font-medium truncate">{song.title}</p>
-                      <p className="text-zinc-500 text-xs truncate">
-                        {song.channelTitle}
-                        {attributionLabel(song) && <> · Added by {attributionLabel(song)}</>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => handlePlayNext(song)}
-                        className={`p-1.5 hover:bg-zinc-800 rounded-full transition-colors ${song.isPriority ? 'text-emerald-400' : 'text-zinc-400 hover:text-zinc-200'}`}
-                        title="Play Next"
-                      >
-                        <ArrowUpCircle className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSong(song.id)}
-                        className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              <DndContext
+                sensors={dndSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => {
+                  const { active, over } = event;
+                  if (!over || active.id === over.id) return;
+                  const newIndex = upNext.findIndex((s) => s.id === over.id);
+                  handleReorderSong(active.id, newIndex, upNext);
+                }}
+              >
+                <SortableContext items={upNext.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {upNext.map((song, index) => (
+                      <SortableUpNextRow key={song.id} song={song} index={index} handleDeleteSong={handleDeleteSong} />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             )
           ) : (
             playedHistory.length === 0 ? (
@@ -2089,7 +2121,7 @@ function HostView({ roomCode, roomName, guestPin, hostUid, onEndRoom, onSwitchRo
 
       {/* Persistent player bar */}
       {currentSong && (
-        <div className="border-t border-zinc-800/50 bg-zinc-950/95 px-4 py-2.5">
+        <div className="flex-shrink-0 border-t border-zinc-800/50 bg-zinc-950/95 px-4 py-2.5">
           <div className="max-w-2xl mx-auto">
             <input
               type="range"
@@ -2356,6 +2388,13 @@ function App() {
     setView('landing');
   };
 
+  const handleGuestLeave = () => {
+    clearSession();
+    setCurrentRoom(null);
+    setUserId(null);
+    setView('landing');
+  };
+
   if (view === 'loading') {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
@@ -2455,7 +2494,7 @@ function App() {
   }
 
   if (view === 'guest-view' && currentRoom) {
-    return <GuestView userId={userId} roomCode={currentRoom.roomCode} />;
+    return <GuestView userId={userId} roomCode={currentRoom.roomCode} onLeave={handleGuestLeave} />;
   }
 
   // Fallback
